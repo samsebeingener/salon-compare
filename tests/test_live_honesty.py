@@ -13,7 +13,7 @@ from salon_compare.collect import (
 from salon_compare.hooks import classify_hook
 from salon_compare.html_fetch import classify_fetch
 from salon_compare.intake import VenueCandidate
-from salon_compare.legal import kad_url
+from salon_compare.legal import LegalExtract, kad_url
 from salon_compare.maps_parse import neighbors_from_twogis_items
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,10 +47,8 @@ class FakeMapsParser:
 
 
 class FakeLegalParser:
-    def parse_egrul(self, html: str) -> object:
+    def parse_egrul(self, html: str) -> LegalExtract:
         del html
-        from salon_compare.legal import LegalExtract
-
         return LegalExtract(status="действует")
 
     def parse_fedresurs(self, html: str) -> str | None:
@@ -76,7 +74,13 @@ def test_login_word_is_not_blocked_captcha_is() -> None:
 def test_kad_shell_without_ogrn_is_missing_not_has_cases() -> None:
     url = kad_url(OGRN)
     html = FakeHtml(
-        {url: HtmlFetchResult("ok", "<html>Картотека арбитражных дел. Войти</html>", url)}
+        {
+            url: HtmlFetchResult(
+                "ok",
+                "<html>Картотека арбитражных дел. Войти</html>",
+                url,
+            )
+        }
     )
     deps = CollectDeps(
         yandex=FakeMapApi(None),
@@ -137,7 +141,8 @@ def test_twogis_requests_point_field() -> None:
 
 
 def test_html_fetcher_sends_user_agent() -> None:
-    text = (ROOT / "src" / "salon_compare" / "html_fetch.py").read_text(encoding="utf-8")
+    path = ROOT / "src" / "salon_compare" / "html_fetch.py"
+    text = path.read_text(encoding="utf-8")
     assert "User-Agent" in text
 
 

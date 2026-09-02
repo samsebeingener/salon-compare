@@ -71,6 +71,10 @@ def kad_url(ogrn: str) -> str:
     return f"https://kad.arbitr.ru/?ogrn={ogrn}"
 
 
+def is_ogrn(value: str) -> bool:
+    return value.isdigit() and len(value) in {13, 15}
+
+
 def resolve_legal_orgs(
     hook: ClassifiedHook,
     yandex: LegalIdCard,
@@ -83,8 +87,8 @@ def resolve_legal_orgs(
         return list(inn_hits)
     found: dict[str, LegalOrg] = {}
     for card in (yandex, twogis):
-        ident = (card.ogrn or card.inn or "").strip()
-        if not ident:
+        ident = (card.ogrn or "").strip()
+        if not is_ogrn(ident):
             continue
         url = card.source_url or egrul_url(ident)
         found[ident] = LegalOrg(ident, ident, url)
