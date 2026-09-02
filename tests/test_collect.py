@@ -14,6 +14,8 @@ from salon_compare.collect import (
 from salon_compare.hooks import classify_hook
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
+from salon_compare.legal import MarkerLegalParser, egrul_url, rbc_search_url
+from salon_compare.site_enrichment import ddg_site_search_url
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,8 +56,12 @@ class FakeParser:
         return self.extract
 
 
-def _venue(venue_id: str = "p1") -> VenueCandidate:
-    return VenueCandidate(venue_id, "Точка", "https://example.com/place")
+def _venue(venue_id: str = "p1", title: str = "Точка") -> VenueCandidate:
+    return VenueCandidate(venue_id, title, "https://example.com/place")
+
+
+def _vishnya_venue() -> VenueCandidate:
+    return VenueCandidate("p1", "Вишня Таганская", "https://example.com/place")
 
 
 def _full_card(url: str) -> MapCard:
@@ -289,15 +295,28 @@ def test_name_hook_loads_about_from_twogis_html_website() -> None:
         html=html,
         parser=OpenHtmlParser(),
     )
-    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.site_about.source_url == site
     assert place.site_about.value is not None
     assert "Таганке" in str(place.site_about.value)
 
 
-def test_blocked_twogis_html_does_not_invent_site() -> None:
+def test_blocked_twogis_finds_site_via_ddg() -> None:
     firm = "https://2gis.ru/firm/1"
-    html = FakeHtml({firm: HtmlFetchResult("blocked", "403", firm)})
+    site = "https://vishnyasalon.ru"
+    ddg = ddg_site_search_url("Вишня Таганская", "Таганская улица, 3")
+    ddg_html = f'<a class="result__a" href="{site}/">Вишня</a>'
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult("blocked", "403", firm),
+            ddg: HtmlFetchResult("ok", ddg_html, ddg),
+            site: HtmlFetchResult(
+                "ok",
+                "<html><h2>О нас</h2><p>Студия маникюра на Таганке.</p></html>",
+                site,
+            ),
+        }
+    )
     twogis = MapCard(
         rating=3.6,
         review_count=22,
@@ -313,9 +332,110 @@ def test_blocked_twogis_html_does_not_invent_site() -> None:
         html=html,
         parser=OpenHtmlParser(),
     )
-    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.FOUND
+    assert place.site_about.source_url == site
+    assert "Таганке" in str(place.site_about.value)
+
+
+def test_blocked_twogis_stays_missing_without_ddg_hit() -> None:
+    firm = "https://2gis.ru/firm/1"
+    ddg = ddg_site_search_url("Вишня Таганская", "Таганская улица, 3")
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult("blocked", "403", firm),
+            ddg: HtmlFetchResult("ok", "<html>no links</html>", ddg),
+        }
+    )
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.site_about.trust is Trust.MISSING
     assert place.site_about.value is None
+
+
+def test_ogrn_hook_loads_site_from_rbc_card() -> None:
+    ogrn = "1147746349552"
+    site = "http://ilike-nails.ru"
+    rbc_search = rbc_search_url(ogrn)
+    rbc_card = f"https://companies.rbc.ru/id/{ogrn}-i-like-nails/"
+    rbc_body = (
+        '<div>Сайт</div><div class="company-detail-block__item-inner-container">'
+        f'<a href="{site}">{site}</a></div>'
+    )
+    html = FakeHtml(
+        {
+            rbc_search: HtmlFetchResult(
+                "ok",
+                f'<a href="{rbc_card}">I LIKE NAILS</a>',
+                rbc_search,
+            ),
+            rbc_card: HtmlFetchResult("ok", rbc_body, rbc_card),
+            site: HtmlFetchResult("ok", "<html>о нас</html>", site),
+        }
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(None),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия I LIKE NAILS")),
+    )
+    place = collect_place(_venue(), classify_hook(ogrn), deps)
+    assert place.site_about.value == "Студия I LIKE NAILS"
+    assert place.site_about.source_url == site
+
+
+def test_site_politica_ogrn_feeds_legal() -> None:
+    site = "https://studio.example"
+    politica = f"{site}/politica"
+    ogrn = "1234567890123"
+    egrul = egrul_url(ogrn)
+    html = FakeHtml(
+        {
+            site: HtmlFetchResult(
+                "ok",
+                '<html><a href="/politica">pol</a><p>о нас</p></html>',
+                site,
+            ),
+            politica: HtmlFetchResult("ok", f"<html>ОГРН: {ogrn}</html>", politica),
+            egrul: HtmlFetchResult(
+                "ok",
+                f"<html>{ogrn} дата регистрации 01.01.2020 действует</html>",
+                egrul,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=4.0,
+        review_count=10,
+        address="Москва",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=site,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+        legal=MarkerLegalParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.egrul_status.value == "действует"
+    assert egrul in html.calls
 
 
 def test_ogrn_hook_loads_site_from_twogis_website() -> None:
@@ -360,7 +480,7 @@ def test_twogis_hours_district_metro_fill_place() -> None:
         html=FakeHtml({}),
         parser=FakeParser(HtmlExtract()),
     )
-    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.hours.value == "пн-вс 10:00-22:00"
     assert place.district.value == "Замоскворечье"
     assert place.metro.value == "Павелецкая, 140 м"

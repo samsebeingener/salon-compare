@@ -23,11 +23,20 @@ from salon_compare.legal import (
     fedresurs_url,
     is_ogrn,
     kad_url,
+    labeled_inn,
     labeled_ogrn,
     rbc_company_snippet,
     rbc_search_url,
     resolve_legal_orgs,
     rusprofile_card_urls,
+)
+from salon_compare.site_enrichment import (
+    MAX_SITE_PAGES,
+    ddg_site_search_url,
+    ddg_site_urls,
+    internal_legal_links,
+    rbc_company_card_url,
+    rbc_website,
 )
 
 
@@ -239,22 +248,77 @@ def _website_from_maps_html(
     return found
 
 
+def _website_from_rbc(
+    ogrn: str,
+    html: HtmlFetcher,
+    pacer: RequestPacer,
+) -> str | None:
+    search_url = rbc_search_url(ogrn)
+    search = _paced_get(html, search_url, pacer)
+    if search.status != "ok":
+        return None
+    card_url = rbc_company_card_url(search.body, ogrn)
+    if card_url is None:
+        return None
+    card = html.get(card_url)
+    if card.status != "ok":
+        return None
+    return rbc_website(card.body)
+
+
+def _ddg_discover_sites(
+    title: str,
+    address: str | None,
+    html: HtmlFetcher,
+    pacer: RequestPacer,
+) -> list[str]:
+    if not title.strip():
+        return []
+    search_url = ddg_site_search_url(title, address)
+    page = _paced_get(html, search_url, pacer)
+    if page.status != "ok":
+        return []
+    return ddg_site_urls(page.body)
+
+
 def _collect_site(
     hook: ClassifiedHook,
     twogis: MapCard,
+    venue_title: str,
+    venue_address: str | None,
     html: HtmlFetcher,
     parser: HtmlParser,
-) -> tuple[SourcedField, str | None]:
+    pacer: RequestPacer,
+) -> tuple[SourcedField, str | None, str | None]:
     maps_site = twogis.website or _website_from_maps_html(twogis.html_url, html, parser)
     ogrn: str | None = None
+    inn: str | None = None
     seen: set[str] = set()
-    queue = list(_site_urls(hook, twogis))
+    queue: list[str] = list(_site_urls(hook, twogis))
     if maps_site:
         key = maps_site.rstrip("/")
         if key not in {item.rstrip("/") for item in queue}:
             queue.append(maps_site)
+    if hook.kind is HookKind.OGRN:
+        rbc_site = _website_from_rbc(hook.normalized, html, pacer)
+        if rbc_site:
+            key = rbc_site.rstrip("/")
+            known = {item.rstrip("/") for item in queue}
+            if key not in known:
+                queue.append(rbc_site)
+    if not queue and hook.kind in {HookKind.NAME, HookKind.MAPS_LINK}:
+        blocked = False
+        if twogis.html_url:
+            page = html.get(twogis.html_url)
+            blocked = page.status == "blocked"
+        if blocked or not twogis.html_url:
+            addr = venue_address or twogis.address
+            queue.extend(_ddg_discover_sites(venue_title, addr, html, pacer))
+    about_value: str | None = None
+    about_url: str | None = None
+    pages_fetched = 0
     index = 0
-    while index < len(queue):
+    while index < len(queue) and pages_fetched < MAX_SITE_PAGES:
         url = queue[index]
         index += 1
         key = url.rstrip("/")
@@ -262,26 +326,41 @@ def _collect_site(
             continue
         seen.add(key)
         page = html.get(url)
+        pages_fetched += 1
         if page.status == "ok":
             if ogrn is None:
-                found = labeled_ogrn(page.body)
-                if found is not None:
-                    ogrn = found
+                ogrn = labeled_ogrn(page.body)
+            if inn is None:
+                inn = labeled_inn(page.body)
             extracted = parser.parse(page.body).about
-            if extracted is not None:
-                return _found(extracted, url), ogrn
+            if extracted is not None and about_value is None:
+                about_value = extracted
+                about_url = url
+            if ogrn is None or inn is None:
+                for link in internal_legal_links(page.body, url):
+                    link_key = link.rstrip("/")
+                    if link_key not in seen:
+                        queue.append(link)
             continue
         if page.status != "empty":
             continue
         extra = html_suffix_url(url)
         if extra is not None and extra.rstrip("/") not in seen:
             queue.append(extra)
-    return _missing(), ogrn
+    if about_value and about_url:
+        about_field = _found(about_value, about_url)
+    else:
+        about_field = _missing()
+    return about_field, ogrn, inn
 
 
 def _is_paced(url: str) -> bool:
     lowered = url.lower()
-    return "duckduckgo.com" in lowered or "rusprofile.ru" in lowered
+    return (
+        "duckduckgo.com" in lowered
+        or "rusprofile.ru" in lowered
+        or "companies.rbc.ru" in lowered
+    )
 
 
 def _paced_get(html: HtmlFetcher, url: str, pacer: RequestPacer) -> HtmlFetchResult:
@@ -352,6 +431,12 @@ def _mark_90d(last: SourcedField, as_of: date) -> SourcedField:
     return SourcedField(value=flag, source_url=last.source_url, trust=last.trust)
 
 
+def _venue_address(address: SourcedField, fallback: str | None) -> str | None:
+    if address.trust is Trust.FOUND and isinstance(address.value, str):
+        return address.value
+    return fallback
+
+
 def collect_place(
     venue: VenueCandidate,
     hook: ClassifiedHook,
@@ -413,7 +498,15 @@ def collect_place(
     else:
         neighbor_vs = _missing()
 
-    site_about, site_ogrn = _collect_site(hook, twogis, html, deps.parser)
+    site_about, site_ogrn, site_inn = _collect_site(
+        hook,
+        twogis,
+        venue.title,
+        _venue_address(address, twogis.address),
+        html,
+        deps.parser,
+        deps.pacer,
+    )
     legal = _collect_legal(
         hook,
         twogis,
@@ -422,6 +515,7 @@ def collect_place(
         legal_choice,
         deps.pacer,
         extra_ogrn=site_ogrn,
+        extra_inn=site_inn,
     )
     as_of = date.today()
     hours = _field(
@@ -487,6 +581,17 @@ class _LegalBundle:
     kad: SourcedField
 
 
+def _inn_hits_from_value(
+    inn: str,
+    html: HtmlFetcher,
+    parser: LegalParser,
+) -> list[LegalOrg]:
+    page = html.get(egrul_url(inn))
+    if page.status != "ok":
+        return []
+    return list(parser.parse_egrul(page.body).orgs)
+
+
 def _inn_hits(
     hook: ClassifiedHook,
     html: HtmlFetcher,
@@ -497,10 +602,7 @@ def _inn_hits(
         return []
     if legal_choice:
         return [LegalOrg(legal_choice, legal_choice, egrul_url(legal_choice))]
-    page = html.get(egrul_url(hook.normalized))
-    if page.status != "ok":
-        return []
-    return list(parser.parse_egrul(page.body).orgs)
+    return _inn_hits_from_value(hook.normalized, html, parser)
 
 
 def _registry_text(
@@ -603,13 +705,17 @@ def _collect_legal(
     legal_choice: str | None,
     pacer: RequestPacer,
     extra_ogrn: str | None = None,
+    extra_inn: str | None = None,
 ) -> _LegalBundle:
     gap = _missing()
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
+    inn_hits = _inn_hits(hook, html, parser, legal_choice)
+    if not inn_hits and extra_inn:
+        inn_hits = _inn_hits_from_value(extra_inn, html, parser)
     orgs = resolve_legal_orgs(
         hook,
         twogis,
-        _inn_hits(hook, html, parser, legal_choice),
+        inn_hits,
         extra_ogrn=extra_ogrn,
     )
     if legal_choice:

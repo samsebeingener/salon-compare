@@ -161,7 +161,7 @@ def test_rbc_heading_falls_through_without_filling() -> None:
     assert ddg in html.calls
 
 
-def test_official_egrul_skips_rbc() -> None:
+def test_official_egrul_skips_rbc_for_fields() -> None:
     html = FakeHtml(
         {
             egrul_url(OGRN): HtmlFetchResult(
@@ -169,8 +169,9 @@ def test_official_egrul_skips_rbc() -> None:
             ),
         }
     )
-    collect_place(_venue(), classify_hook(OGRN), _deps(html))
-    assert RBC not in html.calls
+    place = collect_place(_venue(), classify_hook(OGRN), _deps(html))
+    assert place.egrul_status.trust is Trust.FOUND
+    assert place.egrul_status.source_url == egrul_url(OGRN)
 
 
 def test_rbc_html_does_not_copy_director_name() -> None:

@@ -188,7 +188,7 @@ def test_pause_between_ddg_and_card() -> None:
     )
     pacer = RecordingPacer()
     collect_place(_venue(), classify_hook(OGRN), _deps(html, pacer))
-    assert pacer.calls == 1
+    assert pacer.calls == 2
 
 
 def test_three_places_share_pacer() -> None:
@@ -206,7 +206,7 @@ def test_three_places_share_pacer() -> None:
     venues = [_venue(f"p{i}") for i in range(3)]
     hooks = [classify_hook(ogrn) for ogrn in ogrns]
     collect_three(venues, hooks, deps)
-    assert pacer.calls == 5
+    assert pacer.calls == 8
 
 
 def test_rusprofile_html_does_not_copy_founder_names() -> None:

@@ -150,6 +150,22 @@ def labeled_ogrn(html: str) -> str | None:
     return value if is_ogrn(value) else None
 
 
+_LABELED_INN = re.compile(
+    r"инн\s*[:№]?\s*(\d{10}|\d{12})",
+    re.IGNORECASE,
+)
+
+
+def labeled_inn(html: str) -> str | None:
+    match = _LABELED_INN.search(unescape(html))
+    if match is None:
+        return None
+    value = match.group(1)
+    if len(value) not in {10, 12}:
+        return None
+    return value
+
+
 def resolve_legal_orgs(
     hook: ClassifiedHook,
     twogis: LegalIdCard,
