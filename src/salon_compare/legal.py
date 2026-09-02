@@ -137,9 +137,11 @@ class MarkerLegalParser:
             orgs.append(LegalOrg(ogrn, ogrn, egrul_url(ogrn)))
         status: str | None = None
         lowered = html.lower()
-        if "ликвидир" in lowered or "исключен" in lowered:
+        if "ликвидированная организация" in lowered or "не действует" in lowered:
             status = "не действует"
-        elif "действует" in lowered or "действующ" in lowered:
+        elif "действующая организация" in lowered or "действует" in lowered:
+            status = "действует"
+        elif "действующ" in lowered:
             status = "действует"
         registered = None
         if "регистрац" in lowered:
@@ -147,11 +149,12 @@ class MarkerLegalParser:
             if found_date:
                 registered = found_date.group(1)
         activity = None
-        for marker in ("оквэд", "вид деятельности"):
+        for marker in ("основной вид деятельности", "вид деятельности", "оквэд"):
             idx = lowered.find(marker)
             if idx >= 0:
                 snippet = html[idx : idx + 180]
-                activity = re.sub(r"\s+", " ", snippet).strip()[:120]
+                cleaned = re.sub(r"<[^>]+>", " ", snippet)
+                activity = re.sub(r"\s+", " ", cleaned).strip()[:120]
                 break
         return LegalExtract(
             registered_at=registered,

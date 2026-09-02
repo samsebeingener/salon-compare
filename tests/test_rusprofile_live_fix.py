@@ -26,7 +26,11 @@ def test_ddg_html_search_posts_query(monkeypatch: pytest.MonkeyPatch) -> None:
         data = kwargs.get("data")
         assert isinstance(data, dict)
         posted.append((url, data))
-        return _FakeResponse(200, '<a href="https://www.rusprofile.ru/id/7301223">x</a>', url)
+        return _FakeResponse(
+            200,
+            '<a href="https://www.rusprofile.ru/id/7301223">x</a>',
+            url,
+        )
 
     def fake_get(url: str, **kwargs: object) -> _FakeResponse:
         del kwargs
@@ -46,7 +50,7 @@ def test_ddg_html_search_posts_query(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_has_captcha_json_is_not_blocked_page() -> None:
     html = (
-        f'<html>Действующая организация ОГРН {OGRN} '
+        f"<html>Действующая организация ОГРН {OGRN} "
         '"has_captcha":true,"disable_captcha":false</html>'
     )
     assert classify_fetch(200, html) == "ok"
@@ -71,6 +75,7 @@ def test_acting_org_not_killed_by_related_liquidated() -> None:
     assert extract.activity is not None
     assert "парикмахерскими" in extract.activity.lower()
     assert "flexpoint" not in extract.activity.lower()
+    assert "<" not in extract.activity
 
 
 def test_readme_records_post_and_false_captcha() -> None:
