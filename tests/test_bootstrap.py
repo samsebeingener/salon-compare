@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_env_example_lists_required_keys() -> None:
     text = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "TWOGIS_API_KEY" in text
-    assert "YANDEX_MAPS_API_KEY" in text
+    assert "YANDEX_MAPS_API_KEY" not in text
     assert "LLM_API_KEY" in text
     assert "LLM_BASE_URL" in text
     assert "LLM_MODEL" in text

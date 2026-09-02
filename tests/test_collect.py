@@ -313,3 +313,4 @@ def test_app_shows_fields_table_without_score_index() -> None:
     assert "покупай" not in lowered
     assert "Район" in text
     assert "Метро" in text
+    assert "Яндекс рейтинг" not in text

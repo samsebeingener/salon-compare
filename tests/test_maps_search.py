@@ -204,5 +204,5 @@ def test_app_uses_search_resolver_and_confirmation() -> None:
 def test_compose_forwards_map_keys() -> None:
     text = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "TWOGIS_API_KEY" in text
-    assert "YANDEX_MAPS_API_KEY" in text
+    assert "YANDEX_MAPS_API_KEY" not in text
     assert "LLM_API_KEY" in text

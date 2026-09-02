@@ -100,7 +100,7 @@ def test_card_lists_missing_fields() -> None:
     row = _place(twogis_rating=_found(4.6), title="Вишня")
     card = card_payload(row, score_place(row, as_of=AS_OF))
     assert card["title"] == "Вишня"
-    assert "Яндекс рейтинг" in card["missing"]
+    assert "Яндекс рейтинг" not in card["missing"]
     found = [item for item in card["fields"] if item["label"] == "2ГИС рейтинг"]
     assert found[0]["value"] == 4.6
     assert found[0]["source_url"] == "https://example.test"
