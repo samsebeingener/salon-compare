@@ -91,7 +91,25 @@ def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
     return VenueCandidate(f"maps:{url}", url, url, "maps")
 
 
+def _registry_id(raw: object, lengths: tuple[int, ...]) -> str | None:
+    text = str(raw) if isinstance(raw, int) else raw
+    if isinstance(text, str) and text.isdigit() and len(text) in lengths:
+        return text
+    return None
+
+
+def _org_ids(payload: dict[str, object]) -> tuple[str | None, str | None]:
+    ogrn = _registry_id(payload.get("ogrn"), (13, 15))
+    inn = _registry_id(payload.get("inn"), (10, 12))
+    nested = payload.get("org")
+    if isinstance(nested, dict):
+        ogrn = ogrn or _registry_id(nested.get("ogrn"), (13, 15))
+        inn = inn or _registry_id(nested.get("inn"), (10, 12))
+    return ogrn, inn
+
+
 def card_from_twogis(item: dict[str, object]) -> MapCard:
+    ogrn, inn = _org_ids(item)
     reviews = item.get("reviews")
     rating: float | None = None
     count: int | None = None
@@ -106,7 +124,7 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
     address = raw_address if isinstance(raw_address, str) else None
     ident = item.get("id")
     html_url = f"https://2gis.ru/firm/{ident}" if isinstance(ident, str) else ""
-    return MapCard(rating, count, address, html_url, html_url, None, None)
+    return MapCard(rating, count, address, html_url, html_url, None, None, ogrn, inn)
 
 
 def card_from_yandex(feature: dict[str, object]) -> MapCard:
@@ -136,4 +154,7 @@ def card_from_yandex(feature: dict[str, object]) -> MapCard:
         html_url = f"https://yandex.ru/maps/org/{ident}"
     url = meta.get("url")
     source = url if isinstance(url, str) and url else html_url
-    return MapCard(rating, count, address, source, html_url or source, None, None)
+    ogrn, inn = _org_ids(meta)
+    return MapCard(
+        rating, count, address, source, html_url or source, None, None, ogrn, inn
+    )
