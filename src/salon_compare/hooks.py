@@ -51,6 +51,15 @@ def classify_hook(raw: str) -> ClassifiedHook:
     return ClassifiedHook(raw, HookKind.FREE_TEXT, collapsed)
 
 
+def search_query(hook: ClassifiedHook) -> str:
+    if hook.kind in {HookKind.OGRN, HookKind.INN}:
+        return hook.normalized
+    if hook.kind in {HookKind.WEBSITE, HookKind.BOOKING_LINK}:
+        host = urlparse(hook.normalized).netloc.lower()
+        return host.removeprefix("www.")
+    return hook.raw.strip()
+
+
 def _kind_from_url(host: str, path: str) -> HookKind:
     if "yclients." in host or "dikidi." in host:
         return HookKind.BOOKING_LINK

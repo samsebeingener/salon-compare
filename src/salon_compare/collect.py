@@ -87,6 +87,10 @@ class CollectDeps:
 
 
 class EmptyMapApi:
+    def search(self, query: str) -> list[VenueCandidate]:
+        del query
+        return []
+
     def fetch_card(self, venue: VenueCandidate) -> MapCard | None:
         del venue
         return None

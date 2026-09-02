@@ -48,7 +48,9 @@ def test_two_map_cards_ask_confirm_not_ready() -> None:
             ],
             search_query(name_hook): [a, b],
             search_query(ogrn_hook): [
-                VenueCandidate("twogis:o", "I LIKE NAILS", "https://2gis.ru/firm/o", "twogis")
+                VenueCandidate(
+                    "twogis:o", "I LIKE NAILS", "https://2gis.ru/firm/o", "twogis"
+                )
             ],
         }
     )
