@@ -2,14 +2,31 @@
 
 Сравнение трёх маникюрных точек Москвы для инвестора: открытые данные, оценка привлекательности и честная достоверность.
 
-Тестовое задание. Приложение ещё не собрано: сначала OpenSpec, затем TDD, затем код.
+Тестовое задание. Сейчас в репозитории каркас Streamlit (hello), без сбора салонов.
 
 ## Клонирование
 
 ```text
 git clone https://github.com/samsebeingener/salon-compare.git
 cd salon-compare
+cp .env.example .env
 ```
+
+Локально:
+
+```text
+uv sync --group dev
+uv run python scripts/run_quality.py
+uv run streamlit run src/salon_compare/app.py
+```
+
+Сдача заказчику:
+
+```text
+docker compose up --build
+```
+
+Приложение: http://127.0.0.1:8501 — ключ модели для hello не нужен.
 
 Лицензия: [MIT](LICENSE). Автор: [Никита Куликов](https://samsebeingener.ru) ([samsebeingener](https://github.com/samsebeingener)).
 
