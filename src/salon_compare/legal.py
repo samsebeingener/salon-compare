@@ -6,6 +6,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import quote_plus, unquote
 
 from pydantic import BaseModel
 
@@ -71,6 +72,30 @@ def kad_url(ogrn: str) -> str:
     return f"https://kad.arbitr.ru/?ogrn={ogrn}"
 
 
+def ddg_rusprofile_url(ogrn: str) -> str:
+    query = f"{ogrn} site:rusprofile.ru/id"
+    return f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+
+
+_RUSPROFILE_ID = re.compile(
+    r"(?:https?://)?(?:www\.)?rusprofile\.ru/id/(\d+)",
+    re.IGNORECASE,
+)
+
+
+def rusprofile_card_urls(html: str) -> list[str]:
+    decoded = unquote(html)
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in _RUSPROFILE_ID.finditer(decoded):
+        url = f"https://www.rusprofile.ru/id/{match.group(1)}"
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
+
+
 def is_ogrn(value: str) -> bool:
     return value.isdigit() and len(value) in {13, 15}
 
@@ -112,10 +137,10 @@ class MarkerLegalParser:
             orgs.append(LegalOrg(ogrn, ogrn, egrul_url(ogrn)))
         status: str | None = None
         lowered = html.lower()
-        if "действует" in lowered:
-            status = "действует"
-        elif "ликвидир" in lowered or "исключен" in lowered:
+        if "ликвидир" in lowered or "исключен" in lowered:
             status = "не действует"
+        elif "действует" in lowered or "действующ" in lowered:
+            status = "действует"
         registered = None
         if "регистрац" in lowered:
             found_date = _DATE.search(html)

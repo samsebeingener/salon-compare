@@ -84,16 +84,14 @@ def _venue(venue_id: str = "p1") -> VenueCandidate:
 
 
 def _deps(html: FakeHtml, pacer: RecordingPacer | None = None) -> CollectDeps:
-    kwargs: dict[str, object] = {
-        "yandex": FakeMapApi(),
-        "twogis": FakeMapApi(),
-        "html": html,
-        "parser": FakeMapsParser(),
-        "legal": FakeLegalParser(),
-    }
-    if pacer is not None:
-        kwargs["pacer"] = pacer
-    return CollectDeps(**kwargs)  # type: ignore[arg-type]
+    return CollectDeps(
+        yandex=FakeMapApi(),
+        twogis=FakeMapApi(),
+        html=html,
+        parser=FakeMapsParser(),
+        legal=FakeLegalParser(),
+        pacer=pacer or RecordingPacer(),
+    )
 
 
 def _ddg_page(*cards: str) -> HtmlFetchResult:

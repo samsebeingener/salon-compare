@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -15,17 +16,43 @@ from salon_compare.legal import (
     EmptyLegalParser,
     LegalOrg,
     LegalParser,
+    ddg_rusprofile_url,
     egrul_url,
     fedresurs_url,
     is_ogrn,
     kad_url,
     resolve_legal_orgs,
+    rusprofile_card_urls,
 )
 
 
 class Trust(StrEnum):
     FOUND = "found"
+    WEAK = "weak"
     MISSING = "missing"
+
+
+_MAX_RUSPROFILE_CARDS = 5
+
+
+class RequestPacer(Protocol):
+    def wait(self) -> None: ...
+
+
+class NullPacer:
+    def wait(self) -> None:
+        return
+
+
+class SleepPacer:
+    def __init__(self, seconds: float = 3.0) -> None:
+        self.seconds = seconds
+        self._started = False
+
+    def wait(self) -> None:
+        if self._started:
+            time.sleep(self.seconds)
+        self._started = True
 
 
 class SourcedField(BaseModel):
@@ -105,6 +132,7 @@ class CollectDeps:
     html: HtmlFetcher
     parser: HtmlParser
     legal: LegalParser = field(default_factory=EmptyLegalParser)
+    pacer: RequestPacer = field(default_factory=NullPacer)
 
 
 class EmptyMapApi:
@@ -140,6 +168,21 @@ def _missing() -> SourcedField:
 
 def _found(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.FOUND)
+
+
+def _weak(value: float | int | str, source_url: str) -> SourcedField:
+    return SourcedField(value=value, source_url=source_url, trust=Trust.WEAK)
+
+
+def _is_paced(url: str) -> bool:
+    lowered = url.lower()
+    return "duckduckgo.com" in lowered or "rusprofile.ru" in lowered
+
+
+def _paced_get(html: HtmlFetcher, url: str, pacer: RequestPacer) -> HtmlFetchResult:
+    if _is_paced(url):
+        pacer.wait()
+    return html.get(url)
 
 
 def _field[T: float | int | str](
@@ -301,7 +344,9 @@ def collect_place(
             deps.parser,
         )
 
-    legal = _collect_legal(hook, yandex, twogis, html, deps.legal, legal_choice)
+    legal = _collect_legal(
+        hook, yandex, twogis, html, deps.legal, legal_choice, deps.pacer
+    )
 
     return PlaceRecord(
         venue_id=venue.venue_id,
@@ -366,6 +411,55 @@ def _registry_text(
     return _found(value, url)
 
 
+def _official_egrul(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField]:
+    egrul = html.get(egrul_url(org.ogrn))
+    if egrul.status != "ok" or org.ogrn not in egrul.body:
+        return gap, gap, gap
+    extract = parser.parse_egrul(egrul.body)
+    source = egrul_url(org.ogrn)
+    registered = _found(extract.registered_at, source) if extract.registered_at else gap
+    status = _found(extract.status, source) if extract.status else gap
+    activity = _found(extract.activity, source) if extract.activity else gap
+    return registered, status, activity
+
+
+def _rusprofile_egrul(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    pacer: RequestPacer,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField]:
+    search = _paced_get(html, ddg_rusprofile_url(org.ogrn), pacer)
+    if search.status != "ok":
+        return gap, gap, gap
+    for card_url in rusprofile_card_urls(search.body)[:_MAX_RUSPROFILE_CARDS]:
+        card = _paced_get(html, card_url, pacer)
+        if card.status == "blocked":
+            return gap, gap, gap
+        if card.status != "ok" or org.ogrn not in card.body:
+            continue
+        extract = parser.parse_egrul(card.body)
+        registered = (
+            _weak(extract.registered_at, card_url) if extract.registered_at else gap
+        )
+        status = _weak(extract.status, card_url) if extract.status else gap
+        activity = _weak(extract.activity, card_url) if extract.activity else gap
+        if (
+            registered.trust is Trust.MISSING
+            and status.trust is Trust.MISSING
+            and activity.trust is Trust.MISSING
+        ):
+            continue
+        return registered, status, activity
+    return gap, gap, gap
+
+
 def _collect_legal(
     hook: ClassifiedHook,
     yandex: MapCard,
@@ -373,6 +467,7 @@ def _collect_legal(
     html: HtmlFetcher,
     parser: LegalParser,
     legal_choice: str | None,
+    pacer: RequestPacer,
 ) -> _LegalBundle:
     gap = _missing()
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
@@ -393,20 +488,13 @@ def _collect_legal(
     org = orgs[0]
     if not is_ogrn(org.ogrn):
         return empty
-    egrul = html.get(egrul_url(org.ogrn))
-    if egrul.status == "ok" and org.ogrn in egrul.body:
-        extract = parser.parse_egrul(egrul.body)
-        registered = (
-            _found(extract.registered_at, egrul_url(org.ogrn))
-            if extract.registered_at
-            else gap
-        )
-        status = _found(extract.status, egrul_url(org.ogrn)) if extract.status else gap
-        activity = (
-            _found(extract.activity, egrul_url(org.ogrn)) if extract.activity else gap
-        )
-    else:
-        registered = status = activity = gap
+    registered, status, activity = _official_egrul(org, html, parser, gap)
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        registered, status, activity = _rusprofile_egrul(org, html, parser, pacer, gap)
     fedresurs = _registry_text(
         fedresurs_url(org.ogrn),
         html,
