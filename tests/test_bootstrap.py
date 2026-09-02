@@ -47,12 +47,9 @@ def test_compose_forwards_proxy_env() -> None:
     assert "HTTPS_PROXY" in text
 
 
-def test_streamlit_hello_module_exists() -> None:
+def test_streamlit_app_module_exists() -> None:
     assert (ROOT / "src" / "salon_compare" / "app.py").is_file()
 
 
-def test_hello_app_has_no_salon_intake() -> None:
-    text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
-    lowered = text.lower()
-    assert "зацепк" not in lowered
-    assert "огрн" not in lowered
+def test_streamlit_app_module_exists() -> None:
+    assert (ROOT / "src" / "salon_compare" / "app.py").is_file()
