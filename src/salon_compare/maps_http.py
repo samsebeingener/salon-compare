@@ -19,6 +19,17 @@ from salon_compare.maps_parse import (
 from salon_compare.proxy import httpx_client_kwargs
 
 TWOGIS_FIELDS = "items.reviews,items.address_name,items.point"
+MOSCOW_REGION_ID = "32"
+
+
+def twogis_items_search_params(query: str, key: str) -> dict[str, str]:
+    return {
+        "q": query,
+        "region_id": MOSCOW_REGION_ID,
+        "key": key,
+        "page_size": "5",
+        "fields": TWOGIS_FIELDS,
+    }
 
 
 def _get_json(url: str, params: dict[str, str]) -> object | None:
@@ -93,12 +104,7 @@ class TwoGisApi:
     def search(self, query: str) -> list[VenueCandidate]:
         payload = _get_json(
             "https://catalog.api.2gis.com/3.0/items",
-            {
-                "q": query,
-                "key": self._key,
-                "page_size": "5",
-                "fields": TWOGIS_FIELDS,
-            },
+            twogis_items_search_params(query, self._key),
         )
         return candidates_from_twogis_items(_twogis_items(payload))
 
@@ -119,12 +125,7 @@ class TwoGisApi:
         if item is None and venue.title:
             payload = _get_json(
                 "https://catalog.api.2gis.com/3.0/items",
-                {
-                    "q": venue.title,
-                    "key": self._key,
-                    "page_size": "5",
-                    "fields": TWOGIS_FIELDS,
-                },
+                twogis_items_search_params(venue.title, self._key),
             )
             item = item_by_id(_twogis_items(payload), ident)
         if item is None:
