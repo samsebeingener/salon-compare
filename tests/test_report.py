@@ -58,9 +58,11 @@ def test_empty_json_is_not_a_verdict() -> None:
 
 
 def test_extra_fields_are_ignored() -> None:
-    verdict = parse_verdict(
-        '{"interesting":"А","why_better":"рейтинг","breaks_if":"нет отзывов","junk":true}'
+    raw = (
+        '{"interesting":"А","why_better":"рейтинг",'
+        '"breaks_if":"нет отзывов","junk":true}'
     )
+    verdict = parse_verdict(raw)
     assert verdict is not None
     assert verdict.interesting == "А"
     assert verdict.why_better == "рейтинг"
@@ -105,7 +107,7 @@ def test_card_lists_missing_fields() -> None:
 
 
 def test_patch_field_is_weak_human_edit() -> None:
-    row = _place(twogis_rating=_found(4.1))
+    row = _place(twogis_rating=_found(3.2))
     patched = patch_field(row, "twogis_rating", "4.8")
     assert patched.twogis_rating.value == 4.8
     assert patched.twogis_rating.trust is Trust.WEAK

@@ -69,6 +69,12 @@ def score_place(row: _Fields, as_of: date | None = None) -> PlaceScore:
         reason="число мастеров и прайс не найдены",
     )
     blocks = (reputation, stability, location, scale)
+    if getattr(row, "unreliable", False):
+        return PlaceScore(
+            index=None,
+            note="Объект помечен как недостоверный.",
+            blocks=blocks,
+        )
     total = 0.0
     used = False
     for item in blocks:

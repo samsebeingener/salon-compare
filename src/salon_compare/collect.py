@@ -89,6 +89,7 @@ class PlaceRecord(BaseModel):
     fedresurs: SourcedField
     kad: SourcedField
     legal_candidates: tuple[LegalOrg, ...] = ()
+    unreliable: bool = False
 
 
 @dataclass(frozen=True)
