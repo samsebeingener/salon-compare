@@ -94,12 +94,42 @@ def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
     return VenueCandidate(f"maps:{url}", url, url, "maps")
 
 
-def _search_address(item: dict[str, object]) -> str | None:
-    for key in ("full_address_name", "address_name"):
-        raw = item.get(key)
-        if isinstance(raw, str) and raw.strip():
-            return raw.strip()
+def _nonempty(raw: object) -> str | None:
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
     return None
+
+
+def _append_unique(parts: list[str], extra: str | None, *, split: bool) -> None:
+    if not extra:
+        return
+    chunks = [bit.strip() for bit in extra.split(",")] if split else [extra]
+    joined = ", ".join(parts).casefold()
+    for chunk in chunks:
+        if not chunk or chunk.casefold() in joined:
+            continue
+        parts.append(chunk)
+        joined = ", ".join(parts).casefold()
+
+
+def _search_address(item: dict[str, object]) -> str | None:
+    street: str | None = None
+    for key in ("full_address_name", "address_name"):
+        street = _nonempty(item.get(key))
+        if street:
+            break
+    building = None
+    nested = item.get("address")
+    if isinstance(nested, dict):
+        building = _nonempty(nested.get("building_name"))
+    comment = _nonempty(item.get("address_comment"))
+    parts: list[str] = []
+    _append_unique(parts, street, split=False)
+    _append_unique(parts, building, split=True)
+    _append_unique(parts, comment, split=True)
+    if not parts:
+        return None
+    return ", ".join(parts)
 
 
 def _registry_id(raw: object, lengths: tuple[int, ...]) -> str | None:

@@ -20,7 +20,7 @@ from salon_compare.proxy import httpx_client_kwargs
 
 TWOGIS_FIELDS = (
     "items.reviews,items.address_name,items.point,"
-    "items.contact_groups,items.schedule,items.org"
+    "items.contact_groups,items.schedule,items.org,items.address"
 )
 MOSCOW_REGION_ID = "32"
 
