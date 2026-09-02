@@ -86,7 +86,9 @@ def test_full_api_skips_html() -> None:
 
 def test_missing_api_rating_taken_from_html() -> None:
     yandex_html = "https://yandex.example/html"
-    html = FakeHtml({yandex_html: HtmlFetchResult("ok", "<html>рейтинг</html>", yandex_html)})
+    html = FakeHtml(
+        {yandex_html: HtmlFetchResult("ok", "<html>рейтинг</html>", yandex_html)}
+    )
     deps = CollectDeps(
         yandex=FakeMapApi(
             MapCard(
