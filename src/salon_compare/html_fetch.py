@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from urllib.parse import parse_qs, urlparse
+
 import httpx
 
 from salon_compare.collect import HtmlFetchResult
@@ -16,10 +19,19 @@ _BLOCKED_MARKERS = (
     "cloudflare",
     "captcha",
 )
+_JSON_CAPTCHA_FLAG = re.compile(
+    r'"(?:has_captcha|disable_captcha)"\s*:\s*(?:true|false)',
+    re.IGNORECASE,
+)
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+_HEADERS = {
+    "User-Agent": _USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+}
 
 
 def classify_fetch(status_code: int, text: str) -> str:
@@ -27,22 +39,43 @@ def classify_fetch(status_code: int, text: str) -> str:
         return "blocked"
     if status_code >= 400 or not text.strip():
         return "empty"
-    lowered = text.lower()
+    lowered = _JSON_CAPTCHA_FLAG.sub("", text).lower()
     if any(marker in lowered for marker in _BLOCKED_MARKERS):
         return "blocked"
     return "ok"
 
 
+def ddg_html_post(url: str) -> tuple[str, dict[str, str]] | None:
+    parsed = urlparse(url)
+    if "html.duckduckgo.com" not in parsed.netloc.lower():
+        return None
+    query = parse_qs(parsed.query).get("q", [""])[0]
+    path = parsed.path or "/html/"
+    return f"{parsed.scheme}://{parsed.netloc}{path}", {"q": query, "b": ""}
+
+
 class HttpxHtmlFetcher:
     def get(self, url: str) -> HtmlFetchResult:
         try:
-            response = httpx.get(
-                url,
-                follow_redirects=True,
-                timeout=15.0,
-                headers={"User-Agent": _USER_AGENT},
-                **httpx_client_kwargs(),
-            )
+            posted = ddg_html_post(url)
+            if posted is not None:
+                target, data = posted
+                response = httpx.post(
+                    target,
+                    data=data,
+                    follow_redirects=True,
+                    timeout=15.0,
+                    headers=_HEADERS,
+                    **httpx_client_kwargs(),
+                )
+            else:
+                response = httpx.get(
+                    url,
+                    follow_redirects=True,
+                    timeout=15.0,
+                    headers=_HEADERS,
+                    **httpx_client_kwargs(),
+                )
         except httpx.HTTPError:
             return HtmlFetchResult(status="empty", body="", url=url)
         status = classify_fetch(response.status_code, response.text)
