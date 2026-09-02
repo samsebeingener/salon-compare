@@ -1,0 +1,139 @@
+from datetime import date
+from pathlib import Path
+
+from salon_compare.collect import PlaceRecord, SourcedField, Trust
+from salon_compare.html_parse import OpenHtmlParser
+from salon_compare.score import score_place
+from salon_compare.store import load_run, load_run_usage, save_run
+
+ROOT = Path(__file__).resolve().parents[1]
+AS_OF = date(2026, 9, 2)
+
+HTML_OK = """
+<html>
+<script type="application/ld+json">
+{"@type":"Review","datePublished":"2026-08-15"}
+</script>
+<div>График работы: пн-вс 10:00–21:00</div>
+<div>положительных 40</div>
+<div>отрицательных 3</div>
+</html>
+"""
+
+HTML_RATING_ONLY = """
+<html><div class="rating">4.6</div></html>
+"""
+
+
+def _gap() -> SourcedField:
+    return SourcedField()
+
+
+def _found(value: float | int | str, url: str = "https://example.test") -> SourcedField:
+    return SourcedField(value=value, source_url=url, trust=Trust.FOUND)
+
+
+def _place(**fields: object) -> PlaceRecord:
+    payload: dict[str, object] = {
+        "venue_id": "v1",
+        "title": "Студия",
+        "yandex_rating": _gap(),
+        "yandex_review_count": _gap(),
+        "twogis_rating": _gap(),
+        "twogis_review_count": _gap(),
+        "address": _gap(),
+        "neighbor_count": _gap(),
+        "neighbor_vs": _gap(),
+        "site_about": _gap(),
+        "egrul_registered_at": _gap(),
+        "egrul_status": _gap(),
+        "egrul_activity": _gap(),
+        "fedresurs": _gap(),
+        "kad": _gap(),
+    }
+    payload.update(fields)
+    return PlaceRecord.model_validate(payload)
+
+
+def test_open_html_parser_reads_hours_review_and_plus_minus() -> None:
+    extract = OpenHtmlParser().parse(HTML_OK)
+    assert extract.last_review == "2026-08-15"
+    assert extract.hours is not None
+    assert "10:00" in extract.hours
+    assert extract.plus_minus is not None
+    assert "40" in extract.plus_minus
+    assert "3" in extract.plus_minus
+
+
+def test_open_html_parser_skips_invented_plus_minus() -> None:
+    extract = OpenHtmlParser().parse(HTML_RATING_ONLY)
+    assert extract.plus_minus is None
+    assert extract.last_review is None
+
+
+def test_fresher_yandex_wins_reputation() -> None:
+    score = score_place(
+        _place(
+            yandex_rating=_found(4.9),
+            twogis_rating=_found(4.1),
+            yandex_last_review=_found("2026-08-20"),
+            twogis_last_review=_found("2026-01-01"),
+        ),
+        as_of=AS_OF,
+    )
+    rep = next(item for item in score.blocks if item.name == "reputation")
+    assert rep.points is not None
+    assert "не ясно какой свежее" not in rep.reason
+
+
+def test_high_rating_with_reviews_in_90_days_is_plus_three() -> None:
+    score = score_place(
+        _place(
+            twogis_rating=_found(4.8),
+            twogis_review_count=_found(80),
+            twogis_last_review=_found("2026-08-01"),
+            twogis_reviews_90d=_found("да"),
+        ),
+        as_of=AS_OF,
+    )
+    rep = next(item for item in score.blocks if item.name == "reputation")
+    assert rep.points == 3
+
+
+def test_usage_tokens_without_rate_have_no_usd() -> None:
+    usage = usage_from_response(
+        {"usage": {"prompt_tokens": 100, "completion_tokens": 50}}
+    )
+    assert usage.total_tokens == 150
+    assert estimate_usd(usage) is None
+
+
+def test_usage_with_rates_is_linear() -> None:
+    usage = LlmUsage(prompt_tokens=1_000_000, completion_tokens=1_000_000)
+    usd = estimate_usd(usage, prompt_rate=1.0, completion_rate=2.0)
+    assert usd == 3.0
+
+
+def test_old_sqlite_list_payload_still_loads(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite"
+    run_id = save_run([_place()], path)
+    loaded = load_run(run_id, path)
+    assert loaded is not None
+    assert loaded[0].title == "Студия"
+    assert load_run_usage(run_id, path) is None
+
+
+def test_app_shows_usage_and_new_fields() -> None:
+    text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
+    lowered = text.lower()
+    assert "токен" in lowered
+    assert "90" in text
+    assert "OpenHtmlParser" in text
+    assert "покупай" not in lowered
+
+
+def test_readme_no_longer_lists_freshness_as_hole() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert "дырки этой сдачи" not in text
+    assert "90" in text
+    assert "токен" in text
