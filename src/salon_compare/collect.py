@@ -29,6 +29,7 @@ from salon_compare.legal import (
     rbc_search_url,
     resolve_legal_orgs,
     rusprofile_card_urls,
+    site_requisites_extract,
 )
 from salon_compare.site_enrichment import (
     MAX_SITE_PAGES,
@@ -301,10 +302,11 @@ def _collect_site(
     html: HtmlFetcher,
     parser: HtmlParser,
     pacer: RequestPacer,
-) -> tuple[SourcedField, str | None, str | None]:
+) -> tuple[SourcedField, str | None, str | None, str | None]:
     maps_site = twogis.website or _website_from_maps_html(twogis.html_url, html, parser)
     ogrn: str | None = None
     inn: str | None = None
+    ogrn_source: str | None = None
     seen: set[str] = set()
     queue: list[str] = list(_site_urls(hook, twogis))
     if maps_site:
@@ -341,9 +343,14 @@ def _collect_site(
         pages_fetched += 1
         if page.status == "ok":
             if ogrn is None:
-                ogrn = labeled_ogrn(page.body)
+                found = labeled_ogrn(page.body)
+                if found:
+                    ogrn = found
+                    ogrn_source = url
             if inn is None:
-                inn = labeled_inn(page.body)
+                found_inn = labeled_inn(page.body)
+                if found_inn:
+                    inn = found_inn
             extracted = parser.parse(page.body).about
             if extracted is not None and about_value is None:
                 about_value = extracted
@@ -363,7 +370,7 @@ def _collect_site(
         about_field = _found(about_value, about_url)
     else:
         about_field = _missing()
-    return about_field, ogrn, inn
+    return about_field, ogrn, inn, ogrn_source
 
 
 def _is_paced(url: str) -> bool:
@@ -510,7 +517,7 @@ def collect_place(
     else:
         neighbor_vs = _missing()
 
-    site_about, site_ogrn, site_inn = _collect_site(
+    site_about, site_ogrn, site_inn, site_ogrn_url = _collect_site(
         hook,
         twogis,
         venue.title,
@@ -528,6 +535,7 @@ def collect_place(
         deps.pacer,
         extra_ogrn=site_ogrn,
         extra_inn=site_inn,
+        site_ogrn_url=site_ogrn_url,
     )
     as_of = date.today()
     hours = _field(
@@ -709,6 +717,32 @@ def _rusprofile_egrul(
     return gap, gap, gap
 
 
+def _site_requisites_egrul(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    source_url: str | None,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField]:
+    if not source_url:
+        return gap, gap, gap
+    page = html.get(source_url)
+    if page.status != "ok":
+        return gap, gap, gap
+    extract = site_requisites_extract(page.body, org.ogrn)
+    if extract is None:
+        return gap, gap, gap
+    registered = gap
+    status = _weak(extract.status, source_url) if extract.status else gap
+    activity = _weak(extract.activity, source_url) if extract.activity else gap
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        return gap, gap, gap
+    return registered, status, activity
+
+
 def _collect_legal(
     hook: ClassifiedHook,
     twogis: MapCard,
@@ -718,6 +752,7 @@ def _collect_legal(
     pacer: RequestPacer,
     extra_ogrn: str | None = None,
     extra_inn: str | None = None,
+    site_ogrn_url: str | None = None,
 ) -> _LegalBundle:
     gap = _missing()
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
@@ -754,6 +789,17 @@ def _collect_legal(
         and activity.trust is Trust.MISSING
     ):
         registered, status, activity = _rusprofile_egrul(org, html, parser, pacer, gap)
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        registered, status, activity = _site_requisites_egrul(
+            org,
+            html,
+            site_ogrn_url,
+            gap,
+        )
     fedresurs = _registry_text(
         fedresurs_url(org.ogrn),
         html,

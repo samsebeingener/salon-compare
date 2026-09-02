@@ -91,7 +91,7 @@ def rbc_company_snippet(html: str, ogrn: str) -> str | None:
             return None
         chunk = html[idx : idx + 5000]
         has_id = f"/id/{ogrn}-" in chunk
-        has_label = "ОГРН" in chunk or "огрн" in chunk.lower()
+        has_label = bool(re.search(r"огрн", chunk, re.IGNORECASE))
         if ogrn in chunk and (has_id or has_label):
             return chunk
         start = idx + len(needle)
@@ -137,7 +137,7 @@ def is_ogrn(value: str) -> bool:
 
 
 _LABELED_OGRN = re.compile(
-    r"огрн(?:\s*/\s*огрнип)?\s*[:№]?\s*(\d{13}|\d{15})",
+    r"(?:огрн(?:\s*/\s*огрнип)?|огрнип)\s*[:№]?\s*(\d{15}|\d{13})",
     re.IGNORECASE,
 )
 
@@ -151,7 +151,7 @@ def labeled_ogrn(html: str) -> str | None:
 
 
 _LABELED_INN = re.compile(
-    r"инн\s*[:№]?\s*(\d{10}|\d{12})",
+    r"инн\s*[:№]?\s*(\d{12}|\d{10})",
     re.IGNORECASE,
 )
 
@@ -164,6 +164,47 @@ def labeled_inn(html: str) -> str | None:
     if len(value) not in {10, 12}:
         return None
     return value
+
+
+_REQUISITES_NAME = re.compile(
+    r"ИП\s+([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z.\s\-]{2,60}?)(?=\s+ИНН\b)",
+    re.IGNORECASE,
+)
+_REQUISITES_OOO = re.compile(
+    r'ООО\s+[«"]([^»"]+)[»"]',
+    re.IGNORECASE,
+)
+
+
+def site_requisites_extract(html: str, ogrn: str) -> LegalExtract | None:
+    if labeled_ogrn(html) != ogrn:
+        return None
+    text = unescape(re.sub(r"<[^>]+>", " ", html))
+    text = re.sub(r"\s+", " ", text).strip()
+    name: str | None = None
+    ip_match = _REQUISITES_NAME.search(text)
+    if ip_match:
+        name = f"ИП {ip_match.group(1).strip()}"
+    else:
+        ooo_match = _REQUISITES_OOO.search(text)
+        if ooo_match:
+            name = f"ООО «{ooo_match.group(1).strip()}»"
+    inn = labeled_inn(html)
+    parts: list[str] = []
+    if name:
+        parts.append(name)
+    if inn:
+        parts.append(f"ИНН {inn}")
+    label = "ОГРНИП" if len(ogrn) == 15 else "ОГРН"
+    parts.append(f"{label} {ogrn}")
+    activity = ", ".join(parts)
+    status: str | None = None
+    lowered = text.lower()
+    if "ликвидирован" in lowered or "не действует" in lowered:
+        status = "не действует"
+    elif "действует" in lowered or "действующ" in lowered:
+        status = "действует"
+    return LegalExtract(activity=activity, status=status, registered_at=None)
 
 
 def resolve_legal_orgs(
@@ -187,7 +228,7 @@ def resolve_legal_orgs(
 
 
 _DATE = re.compile(r"\b(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b")
-_OGRN = re.compile(r"\b(\d{13}|\d{15})\b")
+_OGRN = re.compile(r"\b(\d{15}|\d{13})\b")
 
 
 class MarkerLegalParser:

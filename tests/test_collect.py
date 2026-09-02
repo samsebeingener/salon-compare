@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from salon_compare.collect import (
     CollectDeps,
@@ -15,8 +16,6 @@ from salon_compare.hooks import classify_hook
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import MarkerLegalParser, egrul_url, rbc_search_url
-from urllib.parse import quote_plus
-
 from salon_compare.site_enrichment import ddg_site_search_queries, ddg_site_search_url
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -383,7 +382,10 @@ def test_blocked_twogis_finds_site_via_domain_probe() -> None:
         firm: HtmlFetchResult("blocked", "403", firm),
         site: HtmlFetchResult(
             "ok",
-            "<html><p>Таганская улица, 3</p><h2>О нас</h2><p>Студия на Таганке.</p></html>",
+            (
+                "<html><p>Таганская улица, 3</p>"
+                "<h2>О нас</h2><p>Студия на Таганке.</p></html>"
+            ),
             site,
         ),
     }
@@ -480,6 +482,51 @@ def test_site_politica_ogrn_feeds_legal() -> None:
     place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.egrul_status.value == "действует"
     assert egrul in html.calls
+
+
+def test_site_payment_ogrnip_feeds_legal() -> None:
+    site = "https://vishnyasalon.ru"
+    payment = f"{site}/payment"
+    ogrnip = "319774600285920"
+    egrul = egrul_url(ogrnip)
+    rbc = rbc_search_url(ogrnip)
+    html = FakeHtml(
+        {
+            site: HtmlFetchResult(
+                "ok",
+                '<html><a href="/payment">оплата</a><p>о нас</p></html>',
+                site,
+            ),
+            payment: HtmlFetchResult(
+                "ok",
+                f"<html>ИП Гловский И.Д. ИНН 750101059837 ОГРНИП {ogrnip}</html>",
+                payment,
+            ),
+            egrul: HtmlFetchResult("empty", "", egrul),
+            rbc: HtmlFetchResult("ok", "<html>0 результатов</html>", rbc),
+        }
+    )
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url="https://2gis.ru/firm/70000001083760610",
+        html_url="https://2gis.ru/firm/70000001083760610",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=site,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+        legal=MarkerLegalParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert payment in html.calls
+    assert "Гловский" in str(place.egrul_activity.value)
+    assert place.egrul_activity.trust is Trust.WEAK
+    assert place.egrul_activity.source_url == payment
 
 
 def test_ogrn_hook_loads_site_from_twogis_website() -> None:

@@ -21,6 +21,7 @@ from salon_compare.legal import (
     kad_url,
     labeled_ogrn,
     resolve_legal_orgs,
+    site_requisites_extract,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -163,7 +164,16 @@ def test_ogrn_fills_three_registries() -> None:
 def test_labeled_ogrn_reads_marker_not_bare_digits() -> None:
     assert labeled_ogrn(f"ОГРН {OGRN} в подвале") == OGRN
     assert labeled_ogrn("ОГРН/ОГРНИП 1147746349552") == OGRN
+    assert labeled_ogrn("ОГРНИП 319774600285920") == "319774600285920"
     assert labeled_ogrn("id 1495810359387 в скрипте") is None
+
+
+def test_site_requisites_extract_reads_ip_block() -> None:
+    body = "<p>ИП Гловский И.Д. ИНН 750101059837 ОГРНИП 319774600285920</p>"
+    extract = site_requisites_extract(body, "319774600285920")
+    assert extract is not None
+    assert "Гловский" in str(extract.activity)
+    assert "750101059837" in str(extract.activity)
 
 
 def test_site_labeled_ogrn_hits_egrul_when_maps_empty() -> None:
