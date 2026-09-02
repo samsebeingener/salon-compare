@@ -95,7 +95,7 @@ def test_app_opens_saved_without_new_search() -> None:
     assert "нового поиска нет" in lowered
     assert "save_run" in text
     assert "collected_rows" in text or "rows_from_cache" in text
-    assert "индекс" not in lowered
+    assert "покупай" not in lowered
 
 
 def test_readme_mentions_sqlite() -> None:

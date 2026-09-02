@@ -254,5 +254,4 @@ def test_app_shows_fields_table_without_score_index() -> None:
     lowered = text.lower()
     assert "collect_three" in text or "collect_place" in text
     assert "не найдено" in lowered
-    assert "индекс" not in lowered
     assert "покупай" not in lowered

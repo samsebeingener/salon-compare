@@ -25,6 +25,7 @@ from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver
+from salon_compare.score import score_place
 from salon_compare.store import (
     collect_cache_key,
     list_runs,
@@ -129,9 +130,13 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             "ЕГРЮЛ деятельность",
             "Федресурс",
             "КАД",
+            "Индекс 40/25/20/15",
+            "Индекс пояснение",
         ]
     }
     for row in rows:
+        scored = score_place(row)
+        index_cell = "не найдено" if scored.index is None else str(scored.index)
         table[row.title] = [
             _cell(row.yandex_rating),
             _cell(row.yandex_review_count),
@@ -146,8 +151,11 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             _legal_cell(row, row.egrul_activity),
             _legal_cell(row, row.fedresurs),
             _legal_cell(row, row.kad),
+            index_cell,
+            scored.note,
         ]
     st.table(table)
+    st.caption("Ориентир по формуле, не инвестиционный совет.")
 
 
 if st.button("Разобрать зацепки"):
