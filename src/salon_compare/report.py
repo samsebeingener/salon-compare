@@ -27,9 +27,9 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("neighbor_count", "Соседи 500 м"),
     ("neighbor_vs", "Соседи выше/ниже"),
     ("site_about", "Сайт «о нас»"),
-    ("egrul_registered_at", "ЕГРЮЛ дата"),
-    ("egrul_status", "ЕГРЮЛ статус"),
-    ("egrul_activity", "ЕГРЮЛ деятельность"),
+    ("egrul_registered_at", "ЕГРЮЛ/ЕГРИП дата"),
+    ("egrul_status", "ЕГРЮЛ/ЕГРИП статус"),
+    ("egrul_activity", "ЕГРЮЛ/ЕГРИП деятельность"),
     ("fedresurs", "Федресурс"),
     ("kad", "КАД"),
 )
