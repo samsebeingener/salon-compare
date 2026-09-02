@@ -20,6 +20,8 @@ uv run python scripts/run_quality.py
 uv run streamlit run src/salon_compare/app.py
 ```
 
+Локальный Streamlit читает ключи из `.env` в корне проекта. Уже заданные переменные окружения не перезаписывает. В git файл `.env` не попадает.
+
 Сдача заказчику:
 
 ```text
