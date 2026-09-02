@@ -75,6 +75,9 @@ def _with_twogis_neighbors(key: str, ident: str, card: MapCard) -> MapCard:
         card.inn,
         card.lon,
         card.lat,
+        card.hours,
+        card.last_review,
+        card.plus_minus,
     )
 
 

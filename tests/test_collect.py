@@ -66,6 +66,9 @@ def _full_card(url: str) -> MapCard:
         html_url=f"{url}/html",
         neighbor_count=5,
         neighbor_avg_rating=4.2,
+        hours="пн-вс 10:00-21:00",
+        last_review="2026-08-01",
+        plus_minus="40 плюс / 3 минус",
     )
 
 

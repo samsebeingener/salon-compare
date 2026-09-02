@@ -10,6 +10,7 @@ from pathlib import Path
 
 from salon_compare.collect import PlaceRecord
 from salon_compare.legal import LegalOrg
+from salon_compare.llm import LlmUsage
 
 
 def default_db_path() -> Path:
@@ -31,26 +32,40 @@ def _connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-def _dump_rows(rows: Sequence[PlaceRecord]) -> str:
-    payload: list[dict[str, object]] = []
+def _dump_rows(rows: Sequence[PlaceRecord], usage: LlmUsage | None = None) -> str:
+    payload: dict[str, object] = {
+        "rows": [],
+        "usage": usage.model_dump() if usage is not None else None,
+    }
+    packed: list[dict[str, object]] = []
     for row in rows:
         data = row.model_dump(mode="json")
         data["legal_candidates"] = [
             {"ogrn": item.ogrn, "title": item.title, "source_url": item.source_url}
             for item in row.legal_candidates
         ]
-        payload.append(data)
+        packed.append(data)
+    payload["rows"] = packed
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _row_dicts(raw: str) -> tuple[list[dict[str, object]], dict[str, object] | None]:
+    data = json.loads(raw)
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)], None
+    if isinstance(data, dict):
+        rows = data.get("rows")
+        usage = data.get("usage")
+        items = rows if isinstance(rows, list) else []
+        usage_dict = usage if isinstance(usage, dict) else None
+        return [item for item in items if isinstance(item, dict)], usage_dict
+    return [], None
+
+
 def _load_rows(raw: str) -> list[PlaceRecord]:
-    items = json.loads(raw)
+    items, _usage = _row_dicts(raw)
     rows: list[PlaceRecord] = []
-    if not isinstance(items, list):
-        return rows
     for item in items:
-        if not isinstance(item, dict):
-            continue
         parsed: list[LegalOrg] = []
         cands = item.get("legal_candidates") or []
         if isinstance(cands, list):
@@ -68,13 +83,17 @@ def _load_rows(raw: str) -> list[PlaceRecord]:
     return rows
 
 
-def save_run(rows: Sequence[PlaceRecord], path: Path | None = None) -> int:
+def save_run(
+    rows: Sequence[PlaceRecord],
+    path: Path | None = None,
+    usage: LlmUsage | None = None,
+) -> int:
     db = path or default_db_path()
     created = datetime.now(UTC).replace(microsecond=0).isoformat()
     with _connect(db) as conn:
         cursor = conn.execute(
             "INSERT INTO runs (created_at, payload) VALUES (?, ?)",
-            (created, _dump_rows(rows)),
+            (created, _dump_rows(rows, usage)),
         )
         conn.commit()
         run_id = cursor.lastrowid
@@ -98,6 +117,55 @@ def load_run(run_id: int, path: Path | None = None) -> list[PlaceRecord] | None:
         return _load_rows(str(found[0]))
     except (json.JSONDecodeError, ValueError, TypeError):
         return None
+
+
+def load_run_usage(run_id: int, path: Path | None = None) -> LlmUsage | None:
+    db = path or default_db_path()
+    if not db.is_file():
+        return None
+    with _connect(db) as conn:
+        found = conn.execute(
+            "SELECT payload FROM runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+    if found is None:
+        return None
+    try:
+        _rows, usage = _row_dicts(str(found[0]))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+    if usage is None:
+        return None
+    try:
+        parsed = LlmUsage.model_validate(usage)
+    except (ValueError, TypeError):
+        return None
+    if parsed.prompt_tokens is None and parsed.completion_tokens is None:
+        return None
+    return parsed
+
+
+def save_run_usage(run_id: int, usage: LlmUsage, path: Path | None = None) -> None:
+    db = path or default_db_path()
+    if not db.is_file():
+        return
+    with _connect(db) as conn:
+        found = conn.execute(
+            "SELECT payload FROM runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        if found is None:
+            return
+        try:
+            rows, _old = _row_dicts(str(found[0]))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return
+        payload = {"rows": rows, "usage": usage.model_dump()}
+        conn.execute(
+            "UPDATE runs SET payload = ? WHERE id = ?",
+            (json.dumps(payload, ensure_ascii=False), run_id),
+        )
+        conn.commit()
 
 
 def list_runs(path: Path | None = None) -> list[tuple[int, str]]:

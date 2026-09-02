@@ -3,6 +3,7 @@ from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
 from salon_compare.html_parse import OpenHtmlParser
+from salon_compare.llm import LlmUsage, estimate_usd, usage_from_response
 from salon_compare.score import score_place
 from salon_compare.store import load_run, load_run_usage, save_run
 

@@ -95,6 +95,9 @@ def _card(
         neighbor_avg_rating=4.0,
         ogrn=ogrn,
         inn=inn,
+        hours="пн-вс 10:00-21:00",
+        last_review="2026-08-01",
+        plus_minus="10 плюс / 1 минус",
     )
 
 

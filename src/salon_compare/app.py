@@ -7,7 +7,6 @@ import streamlit as st
 
 from salon_compare.collect import (
     CollectDeps,
-    EmptyParser,
     PlaceRecord,
     SleepPacer,
     SourcedField,
@@ -15,6 +14,7 @@ from salon_compare.collect import (
     collect_three,
 )
 from salon_compare.html_fetch import HttpxHtmlFetcher
+from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import (
     IntakeStatus,
     VenueCandidate,
@@ -22,7 +22,7 @@ from salon_compare.intake import (
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
-from salon_compare.llm import NullLlm, make_llm
+from salon_compare.llm import LlmUsage, NullLlm, estimate_usd, make_llm
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.report import (
@@ -41,8 +41,10 @@ from salon_compare.store import (
     collect_cache_key,
     list_runs,
     load_run,
+    load_run_usage,
     rows_from_cache,
     save_run,
+    save_run_usage,
 )
 
 load_project_env()
@@ -69,6 +71,8 @@ if _saved:
                 "saved",
                 tuple(row.venue_id for row in loaded),
             )
+            st.session_state["llm_usage"] = load_run_usage(int(_picked))
+            st.session_state["run_id"] = int(_picked)
             st.session_state.pop("outcome", None)
             st.session_state.pop("llm_fp", None)
 
@@ -138,6 +142,13 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             "Яндекс отзывы",
             "2ГИС рейтинг",
             "2ГИС отзывы",
+            "Часы",
+            "Яндекс последний отзыв",
+            "Яндекс отзывы за 90 дней",
+            "Яндекс плюс/минус",
+            "2ГИС последний отзыв",
+            "2ГИС отзывы за 90 дней",
+            "2ГИС плюс/минус",
             "Адрес",
             "Соседи 500 м",
             "Рейтинг соседей",
@@ -160,6 +171,13 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             _cell(row.yandex_review_count),
             _cell(row.twogis_rating),
             _cell(row.twogis_review_count),
+            _cell(row.hours),
+            _cell(row.yandex_last_review),
+            _cell(row.yandex_reviews_90d),
+            _cell(row.yandex_plus_minus),
+            _cell(row.twogis_last_review),
+            _cell(row.twogis_reviews_90d),
+            _cell(row.twogis_plus_minus),
             _cell(row.address),
             _cell(row.neighbor_count),
             _cell(row.neighbor_vs),
@@ -253,6 +271,14 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
         llm = make_llm()
         st.session_state["llm_kind"] = type(llm).__name__
         st.session_state["llm_verdict"] = complete_verdict(rows, llm)
+        usage = llm.last_usage()
+        if usage.total_tokens is not None:
+            st.session_state["llm_usage"] = usage
+            run_id = st.session_state.get("run_id")
+            if isinstance(run_id, int):
+                save_run_usage(run_id, usage)
+        elif st.session_state.get("llm_usage") is None:
+            st.session_state["llm_usage"] = usage
         st.session_state["llm_fp"] = fingerprint
     verdict = st.session_state.get("llm_verdict")
     kind = st.session_state.get("llm_kind")
@@ -269,11 +295,26 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
         st.write(f"Индекс в выводе: {verdict.compared_index}")
 
 
+def _show_usage() -> None:
+    st.subheader("Расход")
+    usage = st.session_state.get("llm_usage")
+    if not isinstance(usage, LlmUsage) or usage.total_tokens is None:
+        st.write("токены не найдены")
+        return
+    st.write(f"Токены: {usage.total_tokens}")
+    usd = estimate_usd(usage)
+    if usd is None:
+        st.write("стоимость не найдена")
+    else:
+        st.write(f"Оценка: ${usd}")
+
+
 def _show_report(rows: list[PlaceRecord]) -> None:
     _show_table(rows)
     _show_cards(rows)
     _show_corrections(rows)
     _show_verdict(rows)
+    _show_usage()
 
 
 if st.button("Разобрать зацепки"):
@@ -281,6 +322,8 @@ if st.button("Разобрать зацепки"):
     st.session_state.pop("working_rows", None)
     st.session_state.pop("working_key", None)
     st.session_state.pop("llm_fp", None)
+    st.session_state.pop("llm_usage", None)
+    st.session_state.pop("run_id", None)
     st.session_state["outcome"] = resolve_intake(
         [hook_one, hook_two, hook_three],
         _resolver(),
@@ -348,7 +391,7 @@ elif outcome is not None:
                     yandex=map_api_from_env("yandex"),
                     twogis=map_api_from_env("twogis"),
                     html=HttpxHtmlFetcher(),
-                    parser=EmptyParser(),
+                    parser=OpenHtmlParser(),
                     legal=MarkerLegalParser(),
                     pacer=SleepPacer(3.0),
                 ),
@@ -357,7 +400,7 @@ elif outcome is not None:
 
         rows, wrote = rows_from_cache(cache, key, _collect)
         if wrote:
-            save_run(rows)
+            st.session_state["run_id"] = save_run(rows)
         pending = [row for row in rows if row.legal_candidates]
         if pending:
             st.write("Несколько юрлиц. Выберите запись по ссылке. Сами не выбираем.")
