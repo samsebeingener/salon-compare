@@ -79,15 +79,20 @@ def _venue() -> VenueCandidate:
     return VenueCandidate("p1", "Точка", "https://example.com/place")
 
 
-def _card(*, ogrn: str | None = None, inn: str | None = None, url: str = "https://maps.example/a") -> MapCard:
+def _card(
+    *,
+    ogrn: str | None = None,
+    inn: str | None = None,
+    url: str = "https://maps.example/a",
+) -> MapCard:
     return MapCard(
         rating=4.7,
         review_count=10,
         address="Москва",
         source_url=url,
         html_url=url,
-        neighbor_count=None,
-        neighbor_avg_rating=None,
+        neighbor_count=1,
+        neighbor_avg_rating=4.0,
         ogrn=ogrn,
         inn=inn,
     )
@@ -108,7 +113,9 @@ def _deps(
     twogis: MapCard | None = None,
     legal: FakeLegalParser | None = None,
 ) -> CollectDeps:
-    parser = legal or FakeLegalParser(_legal_extract(), "не обнаружено", "не обнаружено")
+    parser = legal or FakeLegalParser(
+        _legal_extract(), "не обнаружено", "не обнаружено"
+    )
     return CollectDeps(
         yandex=FakeMapApi(yandex),
         twogis=FakeMapApi(twogis),
@@ -247,7 +254,9 @@ def test_fedresurs_captcha_missing_egrul_ok() -> None:
     html = FakeHtml(
         {
             egrul_url(OGRN): HtmlFetchResult("ok", "<egrul>", egrul_url(OGRN)),
-            fedresurs_url(OGRN): HtmlFetchResult("blocked", "captcha", fedresurs_url(OGRN)),
+            fedresurs_url(OGRN): HtmlFetchResult(
+                "blocked", "captcha", fedresurs_url(OGRN)
+            ),
             kad_url(OGRN): HtmlFetchResult("ok", "<kad>", kad_url(OGRN)),
         }
     )

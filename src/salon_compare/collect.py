@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
@@ -11,6 +11,15 @@ from pydantic import BaseModel, ConfigDict
 
 from salon_compare.hooks import ClassifiedHook, HookKind
 from salon_compare.intake import VenueCandidate
+from salon_compare.legal import (
+    EmptyLegalParser,
+    LegalOrg,
+    LegalParser,
+    egrul_url,
+    fedresurs_url,
+    kad_url,
+    resolve_legal_orgs,
+)
 
 
 class Trust(StrEnum):
@@ -46,6 +55,12 @@ class PlaceRecord(BaseModel):
     neighbor_count: SourcedField
     neighbor_vs: SourcedField
     site_about: SourcedField
+    egrul_registered_at: SourcedField
+    egrul_status: SourcedField
+    egrul_activity: SourcedField
+    fedresurs: SourcedField
+    kad: SourcedField
+    legal_candidates: tuple[LegalOrg, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +72,8 @@ class MapCard:
     html_url: str
     neighbor_count: int | None
     neighbor_avg_rating: float | None
+    ogrn: str | None = None
+    inn: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +101,7 @@ class CollectDeps:
     twogis: MapApi
     html: HtmlFetcher
     parser: HtmlParser
+    legal: LegalParser = field(default_factory=EmptyLegalParser)
 
 
 class EmptyMapApi:
@@ -165,6 +183,11 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
         neighbor_count=gap,
         neighbor_vs=gap,
         site_about=gap,
+        egrul_registered_at=gap,
+        egrul_status=gap,
+        egrul_activity=gap,
+        fedresurs=gap,
+        kad=gap,
     )
 
 
@@ -172,6 +195,7 @@ def collect_place(
     venue: VenueCandidate,
     hook: ClassifiedHook,
     deps: CollectDeps,
+    legal_choice: str | None = None,
 ) -> PlaceRecord:
     html = _OnceHtml(deps.html)
     yandex = _safe_card(deps.yandex, venue)
@@ -274,6 +298,8 @@ def collect_place(
             deps.parser,
         )
 
+    legal = _collect_legal(hook, yandex, twogis, html, deps.legal, legal_choice)
+
     return PlaceRecord(
         venue_id=venue.venue_id,
         title=venue.title,
@@ -285,18 +311,121 @@ def collect_place(
         neighbor_count=neighbor_count,
         neighbor_vs=neighbor_vs,
         site_about=site_about,
+        egrul_registered_at=legal.registered_at,
+        egrul_status=legal.status,
+        egrul_activity=legal.activity,
+        fedresurs=legal.fedresurs,
+        kad=legal.kad,
+        legal_candidates=legal.candidates,
     )
+
+
+@dataclass(frozen=True)
+class _LegalBundle:
+    candidates: tuple[LegalOrg, ...]
+    registered_at: SourcedField
+    status: SourcedField
+    activity: SourcedField
+    fedresurs: SourcedField
+    kad: SourcedField
+
+
+def _inn_hits(
+    hook: ClassifiedHook,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    legal_choice: str | None,
+) -> list[LegalOrg]:
+    if hook.kind is not HookKind.INN:
+        return []
+    if legal_choice:
+        return [LegalOrg(legal_choice, legal_choice, egrul_url(legal_choice))]
+    page = html.get(egrul_url(hook.normalized))
+    if page.status != "ok":
+        return []
+    return list(parser.parse_egrul(page.body).orgs)
+
+
+def _registry_text(
+    url: str,
+    html: HtmlFetcher,
+    pick: Callable[[str], str | None],
+) -> SourcedField:
+    page = html.get(url)
+    if page.status != "ok":
+        return _missing()
+    value = pick(page.body)
+    if value is None:
+        return _missing()
+    return _found(value, url)
+
+
+def _collect_legal(
+    hook: ClassifiedHook,
+    yandex: MapCard,
+    twogis: MapCard,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    legal_choice: str | None,
+) -> _LegalBundle:
+    gap = _missing()
+    empty = _LegalBundle((), gap, gap, gap, gap, gap)
+    orgs = resolve_legal_orgs(
+        hook,
+        yandex,
+        twogis,
+        _inn_hits(hook, html, parser, legal_choice),
+    )
+    if legal_choice:
+        picked = [item for item in orgs if item.ogrn == legal_choice]
+        if len(picked) == 1:
+            orgs = picked
+    if len(orgs) > 1:
+        return _LegalBundle(tuple(orgs), gap, gap, gap, gap, gap)
+    if len(orgs) != 1:
+        return empty
+    org = orgs[0]
+    egrul = html.get(egrul_url(org.ogrn))
+    if egrul.status == "ok":
+        extract = parser.parse_egrul(egrul.body)
+        registered = (
+            _found(extract.registered_at, egrul_url(org.ogrn))
+            if extract.registered_at
+            else gap
+        )
+        status = _found(extract.status, egrul_url(org.ogrn)) if extract.status else gap
+        activity = (
+            _found(extract.activity, egrul_url(org.ogrn)) if extract.activity else gap
+        )
+    else:
+        registered = status = activity = gap
+    fedresurs = _registry_text(
+        fedresurs_url(org.ogrn),
+        html,
+        parser.parse_fedresurs,
+    )
+    kad = _registry_text(kad_url(org.ogrn), html, parser.parse_kad)
+    return _LegalBundle((), registered, status, activity, fedresurs, kad)
 
 
 def collect_three(
     venues: Sequence[VenueCandidate],
     hooks: Sequence[ClassifiedHook],
     deps: CollectDeps,
+    legal_choices: Mapping[str, str] | None = None,
 ) -> list[PlaceRecord]:
+    choices = legal_choices or {}
     rows: list[PlaceRecord] = []
     for venue, hook in zip(venues, hooks, strict=True):
         try:
-            rows.append(collect_place(venue, hook, deps))
+            rows.append(
+                collect_place(
+                    venue,
+                    hook,
+                    deps,
+                    legal_choice=choices.get(venue.venue_id),
+                )
+            )
         except Exception:
             rows.append(_empty_place(venue))
     return rows

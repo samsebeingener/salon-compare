@@ -19,6 +19,7 @@ from salon_compare.intake import (
     apply_slot_choices,
     resolve_intake,
 )
+from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver
 
@@ -53,6 +54,29 @@ def _radio_format(slot: list[VenueCandidate]) -> Callable[[str], str]:
     return _fmt
 
 
+def _legal_cell(row: PlaceRecord, field: SourcedField) -> str:
+    if row.legal_candidates:
+        links = " · ".join(
+            f"{item.title} — {item.source_url}" for item in row.legal_candidates
+        )
+        return f"уточните юрлицо · {links}"
+    return _cell(field)
+
+
+def _org_label(orgs: tuple[LegalOrg, ...], ogrn: str) -> str:
+    for item in orgs:
+        if item.ogrn == ogrn:
+            return f"{item.title} — {item.source_url}"
+    return ogrn
+
+
+def _org_format(orgs: tuple[LegalOrg, ...]) -> Callable[[str], str]:
+    def _fmt(ogrn: str) -> str:
+        return _org_label(orgs, ogrn)
+
+    return _fmt
+
+
 def _resolver() -> MapsSearchResolver:
     return MapsSearchResolver(map_api_from_env("twogis"), map_api_from_env("yandex"))
 
@@ -69,6 +93,11 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             "Соседи 500 м",
             "Рейтинг соседей",
             "Сайт «о нас»",
+            "ЕГРЮЛ дата",
+            "ЕГРЮЛ статус",
+            "ЕГРЮЛ деятельность",
+            "Федресурс",
+            "КАД",
         ]
     }
     for row in rows:
@@ -81,6 +110,11 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             _cell(row.neighbor_count),
             _cell(row.neighbor_vs),
             _cell(row.site_about),
+            _legal_cell(row, row.egrul_registered_at),
+            _legal_cell(row, row.egrul_status),
+            _legal_cell(row, row.egrul_activity),
+            _legal_cell(row, row.fedresurs),
+            _legal_cell(row, row.kad),
         ]
     st.table(table)
 
@@ -90,6 +124,7 @@ if st.button("Разобрать зацепки"):
         [hook_one, hook_two, hook_three],
         _resolver(),
     )
+    st.session_state["legal_choices"] = {}
 
 outcome = st.session_state.get("outcome")
 if outcome is not None:
@@ -118,6 +153,7 @@ if outcome is not None:
             st.session_state["outcome"] = apply_slot_choices(outcome, choices)
             st.rerun()
     elif outcome.status is IntakeStatus.READY and outcome.chosen_venues:
+        legal_choices: dict[str, str] = st.session_state.setdefault("legal_choices", {})
         rows = collect_three(
             outcome.chosen_venues,
             outcome.classified,
@@ -126,8 +162,28 @@ if outcome is not None:
                 twogis=map_api_from_env("twogis"),
                 html=HttpxHtmlFetcher(),
                 parser=EmptyParser(),
+                legal=MarkerLegalParser(),
             ),
+            legal_choices=legal_choices,
         )
+        pending = [row for row in rows if row.legal_candidates]
+        if pending:
+            st.write("Несколько юрлиц. Выберите запись по ссылке. Сами не выбираем.")
+            picked_legal: dict[str, str] = {}
+            for row in pending:
+                options = [item.ogrn for item in row.legal_candidates]
+                chosen = st.radio(
+                    f"Юрлицо: {row.title}",
+                    options,
+                    format_func=_org_format(row.legal_candidates),
+                    key=f"legal-{row.venue_id}",
+                )
+                if chosen is not None:
+                    picked_legal[row.venue_id] = str(chosen)
+            if st.button("Подтвердить юрлицо"):
+                legal_choices.update(picked_legal)
+                st.session_state["legal_choices"] = legal_choices
+                st.rerun()
         _show_table(rows)
     else:
         for slot in outcome.candidates_by_slot:
