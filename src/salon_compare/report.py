@@ -20,6 +20,8 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("twogis_rating", "2ГИС рейтинг"),
     ("twogis_review_count", "2ГИС отзывы"),
     ("hours", "Часы"),
+    ("district", "Район"),
+    ("metro", "Метро"),
     ("yandex_last_review", "Яндекс последний отзыв"),
     ("yandex_reviews_90d", "Яндекс отзывы за 90 дней"),
     ("yandex_plus_minus", "Яндекс плюс/минус"),

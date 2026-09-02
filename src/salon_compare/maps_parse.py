@@ -208,6 +208,104 @@ def _http_url(raw: object) -> str | None:
     return None
 
 
+_DAY_ORDER = (
+    ("Mon", "пн"),
+    ("Tue", "вт"),
+    ("Wed", "ср"),
+    ("Thu", "чт"),
+    ("Fri", "пт"),
+    ("Sat", "сб"),
+    ("Sun", "вс"),
+)
+
+
+def _day_slot(day: object) -> str | None:
+    if not isinstance(day, dict):
+        return None
+    hours = day.get("working_hours")
+    if not isinstance(hours, list) or not hours:
+        return None
+    first = hours[0]
+    if not isinstance(first, dict):
+        return None
+    start, end = first.get("from"), first.get("to")
+    if isinstance(start, str) and isinstance(end, str) and start and end:
+        return f"{start}-{end}"
+    return None
+
+
+def hours_from_schedule(schedule: object) -> str | None:
+    if not isinstance(schedule, dict):
+        return None
+    rows: list[tuple[str, str]] = []
+    for key, short in _DAY_ORDER:
+        slot = _day_slot(schedule.get(key))
+        if slot:
+            rows.append((short, slot))
+    if not rows:
+        return None
+    groups: list[tuple[str, str, str]] = []
+    for short, slot in rows:
+        if groups and groups[-1][2] == slot:
+            start, _, same = groups[-1]
+            groups[-1] = (start, short, same)
+        else:
+            groups.append((short, short, slot))
+    parts: list[str] = []
+    for start, end, slot in groups:
+        label = start if start == end else f"{start}-{end}"
+        parts.append(f"{label} {slot}")
+    return ", ".join(parts)
+
+
+def district_from_adm(adm: object) -> str | None:
+    if not isinstance(adm, list):
+        return None
+    for item in adm:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") != "district":
+            continue
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    return None
+
+
+def metro_from_links(links: object) -> str | None:
+    if not isinstance(links, dict):
+        return None
+    stations = links.get("nearest_stations")
+    if not isinstance(stations, list):
+        return None
+    metros: list[tuple[int, str]] = []
+    for item in stations:
+        if not isinstance(item, dict):
+            continue
+        types = item.get("route_types")
+        if isinstance(types, list):
+            is_metro = "metro" in types
+        elif isinstance(types, str):
+            is_metro = types == "metro"
+        else:
+            is_metro = False
+        if not is_metro:
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        dist = item.get("distance")
+        meters = int(dist) if isinstance(dist, int | float) else 10**9
+        metros.append((meters, name.strip()))
+    if not metros:
+        return None
+    metros.sort()
+    meters, name = metros[0]
+    if meters >= 10**9:
+        return name
+    return f"{name}, {meters} м"
+
+
 def card_from_twogis(item: dict[str, object]) -> MapCard:
     ogrn, inn = _org_ids(item)
     reviews = item.get("reviews")
@@ -237,7 +335,10 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
         inn,
         lon,
         lat,
+        hours=hours_from_schedule(item.get("schedule")),
         website=_contact_website(item),
+        district=district_from_adm(item.get("adm_div")),
+        metro=metro_from_links(item.get("links")),
     )
 
 

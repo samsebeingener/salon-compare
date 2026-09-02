@@ -103,6 +103,8 @@ class PlaceRecord(BaseModel):
     twogis_reviews_90d: SourcedField = Field(default_factory=SourcedField)
     yandex_plus_minus: SourcedField = Field(default_factory=SourcedField)
     twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
+    district: SourcedField = Field(default_factory=SourcedField)
+    metro: SourcedField = Field(default_factory=SourcedField)
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,8 @@ class MapCard:
     last_review: str | None = None
     plus_minus: str | None = None
     website: str | None = None
+    district: str | None = None
+    metro: str | None = None
 
 
 @dataclass(frozen=True)
@@ -186,6 +190,19 @@ def _missing() -> SourcedField:
 
 def _found(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.FOUND)
+
+
+def _prefer_text(
+    primary: str | None,
+    primary_url: str,
+    secondary: str | None,
+    secondary_url: str,
+) -> SourcedField:
+    if primary:
+        return _found(primary, primary_url)
+    if secondary:
+        return _found(secondary, secondary_url)
+    return _missing()
 
 
 def _weak(value: float | int | str, source_url: str) -> SourcedField:
@@ -477,6 +494,12 @@ def collect_place(
         twogis_reviews_90d=_mark_90d(twogis_last, as_of),
         yandex_plus_minus=yandex_pm,
         twogis_plus_minus=twogis_pm,
+        district=_prefer_text(
+            yandex.district, yandex.source_url, twogis.district, twogis.source_url
+        ),
+        metro=_prefer_text(
+            yandex.metro, yandex.source_url, twogis.metro, twogis.source_url
+        ),
     )
 
 

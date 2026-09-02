@@ -160,10 +160,7 @@ def test_twogis_search_does_not_repeat_mall_already_in_street() -> None:
 
 def _week_hours(start: str = "10:00", end: str = "22:00") -> dict[str, object]:
     slot = {"working_hours": [{"from": start, "to": end}]}
-    return {
-        day: slot
-        for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-    }
+    return {day: slot for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")}
 
 
 def test_twogis_card_reads_hours_district_metro() -> None:
