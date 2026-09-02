@@ -22,6 +22,7 @@ from salon_compare.intake import (
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
+from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver
 from salon_compare.store import (
@@ -31,6 +32,8 @@ from salon_compare.store import (
     rows_from_cache,
     save_run,
 )
+
+load_project_env()
 
 st.set_page_config(page_title="salon-compare", layout="centered")
 st.title("salon-compare")

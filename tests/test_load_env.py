@@ -7,7 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_dotenv_fills_empty_environ(tmp_path: Path) -> None:
     path = tmp_path / ".env"
-    path.write_text("TWOGIS_API_KEY=dummy-maps-key\n# comment\nEMPTY=\n", encoding="utf-8")
+    path.write_text(
+        "TWOGIS_API_KEY=dummy-maps-key\n# comment\nEMPTY=\n",
+        encoding="utf-8",
+    )
     environ: dict[str, str] = {}
     load_dotenv_file(path, environ)
     assert environ["TWOGIS_API_KEY"] == "dummy-maps-key"
