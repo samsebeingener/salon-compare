@@ -6,6 +6,9 @@ services:
       - "8501:8501"
     environment:
       GIT_SHA: ${GIT_SHA:-local}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1
     volumes:
       - ./data:/app/data
     healthcheck:

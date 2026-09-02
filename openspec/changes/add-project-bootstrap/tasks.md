@@ -12,7 +12,7 @@
 ## 2. Секреты и gitignore
 
 - [x] 2.1 Красный тест: `.env` не в git, `.env.example` обязателен
-- [x] 2.2 Реализация: `.env.example` с `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, `LLM_*`
+- [x] 2.2 Реализация: `.env.example` с `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, `LLM_*`, `HTTP_PROXY`, `HTTPS_PROXY`
 - [x] 2.3 Красный тест: `*.db` / `*.sqlite` / `*.sqlite3` игнорируются
 - [x] 2.4 Реализация: gitignore закрывает `.env` и файл SQLite
 

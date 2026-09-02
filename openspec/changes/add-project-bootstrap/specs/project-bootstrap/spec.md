@@ -29,7 +29,7 @@
 - THEN процесс не падает из-за отсутствия ключа модели
 
 ### Requirement: Секреты не в git, образец окружения есть
-Система MUST не включать `.env` в git. Репозиторий SHALL содержать отслеживаемый `.env.example` с плейсхолдерами `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY` и переменными `LLM_*`.
+Система MUST не включать `.env` в git. Репозиторий SHALL содержать отслеживаемый `.env.example` с плейсхолдерами `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, переменными `LLM_*`, `HTTP_PROXY` и `HTTPS_PROXY`.
 
 #### Scenario: .env не коммитится
 - GIVEN в рабочей копии есть файл `.env` с любыми значениями
@@ -40,7 +40,16 @@
 - GIVEN клонированный репозиторий без локального `.env`
 - WHEN открывают `.env.example`
 - THEN файл есть в git
-- THEN в нём есть `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY` и хотя бы одна переменная с префиксом `LLM_`
+- THEN в нём есть `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, переменные с префиксом `LLM_`, `HTTP_PROXY` и `HTTPS_PROXY`
+
+### Requirement: Прокси для LLM из РФ
+Система SHALL читать `HTTP_PROXY` и `HTTPS_PROXY` из окружения. Клиент к модели MUST передавать `trust_env=True`, чтобы при недоступности LLM из РФ работал прокси. Пустые значения MUST означать работу без прокси. README SHALL описывать эти переменные.
+
+#### Scenario: Образец и клиент уважают прокси
+- GIVEN в `.env.example` есть `HTTP_PROXY` и `HTTPS_PROXY`
+- WHEN собирают HTTP-клиент для модели
+- THEN клиент доверяет переменным окружения (`trust_env`)
+- THEN в README указано, зачем прокси нужен из РФ
 
 ### Requirement: Streamlit отвечает по HTTP после Compose
 После успешного `docker compose up` система SHALL принимать HTTP-запрос к опубликованному порту Streamlit и отвечать без ошибки соединения.

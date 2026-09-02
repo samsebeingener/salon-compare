@@ -41,6 +41,12 @@ def test_compose_file_exists() -> None:
     assert (ROOT / "compose.yaml").is_file()
 
 
+def test_compose_forwards_proxy_env() -> None:
+    text = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    assert "HTTP_PROXY" in text
+    assert "HTTPS_PROXY" in text
+
+
 def test_streamlit_hello_module_exists() -> None:
     assert (ROOT / "src" / "salon_compare" / "app.py").is_file()
 
