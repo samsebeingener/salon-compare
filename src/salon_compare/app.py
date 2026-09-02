@@ -335,6 +335,7 @@ if st.button("Разобрать зацепки"):
     st.session_state.pop("saved_rows", None)
     st.session_state.pop("working_rows", None)
     st.session_state.pop("working_key", None)
+    st.session_state.pop("row_cache", None)
     st.session_state.pop("llm_fp", None)
     st.session_state.pop("llm_usage", None)
     st.session_state.pop("run_id", None)
