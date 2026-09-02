@@ -136,9 +136,13 @@ def test_ogrn_hook_is_single_org_without_search() -> None:
 def test_ogrn_fills_three_registries() -> None:
     html = FakeHtml(
         {
-            egrul_url(OGRN): HtmlFetchResult("ok", "<egrul>", egrul_url(OGRN)),
-            fedresurs_url(OGRN): HtmlFetchResult("ok", "<fed>", fedresurs_url(OGRN)),
-            kad_url(OGRN): HtmlFetchResult("ok", "<kad>", kad_url(OGRN)),
+            egrul_url(OGRN): HtmlFetchResult(
+                "ok", f"<egrul>{OGRN}</egrul>", egrul_url(OGRN)
+            ),
+            fedresurs_url(OGRN): HtmlFetchResult(
+                "ok", f"<fed>{OGRN}</fed>", fedresurs_url(OGRN)
+            ),
+            kad_url(OGRN): HtmlFetchResult("ok", f"<kad>{OGRN}</kad>", kad_url(OGRN)),
         }
     )
     place = collect_place(_venue(), classify_hook(OGRN), _deps(html))
@@ -190,13 +194,13 @@ def test_confirm_ogrn_collects_that_org() -> None:
     html = FakeHtml(
         {
             egrul_url("2222222222222"): HtmlFetchResult(
-                "ok", "<egrul>", egrul_url("2222222222222")
+                "ok", "<egrul>2222222222222</egrul>", egrul_url("2222222222222")
             ),
             fedresurs_url("2222222222222"): HtmlFetchResult(
-                "ok", "<fed>", fedresurs_url("2222222222222")
+                "ok", "<fed>2222222222222</fed>", fedresurs_url("2222222222222")
             ),
             kad_url("2222222222222"): HtmlFetchResult(
-                "ok", "<kad>", kad_url("2222222222222")
+                "ok", "<kad>2222222222222</kad>", kad_url("2222222222222")
             ),
         }
     )
@@ -253,11 +257,13 @@ def test_inn_two_orgs_need_confirm() -> None:
 def test_fedresurs_captcha_missing_egrul_ok() -> None:
     html = FakeHtml(
         {
-            egrul_url(OGRN): HtmlFetchResult("ok", "<egrul>", egrul_url(OGRN)),
+            egrul_url(OGRN): HtmlFetchResult(
+                "ok", f"<egrul>{OGRN}</egrul>", egrul_url(OGRN)
+            ),
             fedresurs_url(OGRN): HtmlFetchResult(
                 "blocked", "captcha", fedresurs_url(OGRN)
             ),
-            kad_url(OGRN): HtmlFetchResult("ok", "<kad>", kad_url(OGRN)),
+            kad_url(OGRN): HtmlFetchResult("ok", f"<kad>{OGRN}</kad>", kad_url(OGRN)),
         }
     )
     place = collect_place(_venue(), classify_hook(OGRN), _deps(html))

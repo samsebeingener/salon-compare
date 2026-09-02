@@ -108,6 +108,35 @@ def _org_ids(payload: dict[str, object]) -> tuple[str | None, str | None]:
     return ogrn, inn
 
 
+def neighbors_from_twogis_items(
+    items: list[dict[str, object]],
+    self_id: str,
+) -> tuple[int | None, float | None]:
+    ratings: list[float] = []
+    for item in items:
+        if str(item.get("id")) == self_id:
+            continue
+        reviews = item.get("reviews")
+        if not isinstance(reviews, dict):
+            continue
+        raw = reviews.get("general_rating")
+        if isinstance(raw, int | float):
+            ratings.append(float(raw))
+    if not ratings:
+        return None, None
+    return len(ratings), sum(ratings) / len(ratings)
+
+
+def _geo_point(payload: dict[str, object]) -> tuple[float | None, float | None]:
+    raw = payload.get("point")
+    if isinstance(raw, dict):
+        lon_raw = raw.get("lon") or raw.get("lng")
+        lat_raw = raw.get("lat")
+        if isinstance(lon_raw, int | float) and isinstance(lat_raw, int | float):
+            return float(lon_raw), float(lat_raw)
+    return None, None
+
+
 def card_from_twogis(item: dict[str, object]) -> MapCard:
     ogrn, inn = _org_ids(item)
     reviews = item.get("reviews")
@@ -124,7 +153,10 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
     address = raw_address if isinstance(raw_address, str) else None
     ident = item.get("id")
     html_url = f"https://2gis.ru/firm/{ident}" if isinstance(ident, str) else ""
-    return MapCard(rating, count, address, html_url, html_url, None, None, ogrn, inn)
+    lon, lat = _geo_point(item)
+    return MapCard(
+        rating, count, address, html_url, html_url, None, None, ogrn, inn, lon, lat
+    )
 
 
 def card_from_yandex(feature: dict[str, object]) -> MapCard:

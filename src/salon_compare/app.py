@@ -148,7 +148,8 @@ if outcome is not None:
                     format_func=_radio_format(slot),
                     key=f"pick-{index}",
                 )
-                choices[index] = str(picked) if picked is not None else options[0]
+                if picked is not None:
+                    choices[index] = str(picked)
         if st.button("Подтвердить точки"):
             st.session_state["outcome"] = apply_slot_choices(outcome, choices)
             st.rerun()

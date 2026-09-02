@@ -14,8 +14,11 @@ from salon_compare.maps_parse import (
     card_from_twogis,
     card_from_yandex,
     item_by_id,
+    neighbors_from_twogis_items,
 )
 from salon_compare.proxy import httpx_client_kwargs
+
+TWOGIS_FIELDS = "items.reviews,items.address_name,items.point"
 
 
 def _get_json(url: str, params: dict[str, str]) -> object | None:
@@ -31,6 +34,37 @@ def _get_json(url: str, params: dict[str, str]) -> object | None:
     except httpx.HTTPError:
         return None
     return data
+
+
+def _with_twogis_neighbors(key: str, ident: str, card: MapCard) -> MapCard:
+    if card.lon is None or card.lat is None:
+        return card
+    payload = _get_json(
+        "https://catalog.api.2gis.com/3.0/items",
+        {
+            "q": "маникюр",
+            "point": f"{card.lon},{card.lat}",
+            "radius": "500",
+            "type": "branch",
+            "page_size": "10",
+            "key": key,
+            "fields": "items.reviews",
+        },
+    )
+    count, avg = neighbors_from_twogis_items(_twogis_items(payload), ident)
+    return MapCard(
+        card.rating,
+        card.review_count,
+        card.address,
+        card.source_url,
+        card.html_url,
+        count,
+        avg,
+        card.ogrn,
+        card.inn,
+        card.lon,
+        card.lat,
+    )
 
 
 def _twogis_items(payload: object) -> list[dict[str, object]]:
@@ -63,7 +97,7 @@ class TwoGisApi:
                 "q": query,
                 "key": self._key,
                 "page_size": "5",
-                "fields": "items.reviews,items.address_name",
+                "fields": TWOGIS_FIELDS,
             },
         )
         return candidates_from_twogis_items(_twogis_items(payload))
@@ -77,7 +111,7 @@ class TwoGisApi:
             {
                 "id": ident,
                 "key": self._key,
-                "fields": "items.reviews,items.address_name",
+                "fields": TWOGIS_FIELDS,
             },
         )
         items = _twogis_items(payload)
@@ -89,13 +123,14 @@ class TwoGisApi:
                     "q": venue.title,
                     "key": self._key,
                     "page_size": "5",
-                    "fields": "items.reviews,items.address_name",
+                    "fields": TWOGIS_FIELDS,
                 },
             )
             item = item_by_id(_twogis_items(payload), ident)
         if item is None:
             return None
-        return card_from_twogis(item)
+        card = card_from_twogis(item)
+        return _with_twogis_neighbors(self._key, ident, card)
 
 
 class YandexPlacesApi:

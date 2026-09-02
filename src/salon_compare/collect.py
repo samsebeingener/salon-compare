@@ -17,6 +17,7 @@ from salon_compare.legal import (
     LegalParser,
     egrul_url,
     fedresurs_url,
+    is_ogrn,
     kad_url,
     resolve_legal_orgs,
 )
@@ -74,6 +75,8 @@ class MapCard:
     neighbor_avg_rating: float | None
     ogrn: str | None = None
     inn: str | None = None
+    lon: float | None = None
+    lat: float | None = None
 
 
 @dataclass(frozen=True)
@@ -350,9 +353,12 @@ def _registry_text(
     url: str,
     html: HtmlFetcher,
     pick: Callable[[str], str | None],
+    needle: str,
 ) -> SourcedField:
     page = html.get(url)
     if page.status != "ok":
+        return _missing()
+    if needle not in page.body:
         return _missing()
     value = pick(page.body)
     if value is None:
@@ -385,8 +391,10 @@ def _collect_legal(
     if len(orgs) != 1:
         return empty
     org = orgs[0]
+    if not is_ogrn(org.ogrn):
+        return empty
     egrul = html.get(egrul_url(org.ogrn))
-    if egrul.status == "ok":
+    if egrul.status == "ok" and org.ogrn in egrul.body:
         extract = parser.parse_egrul(egrul.body)
         registered = (
             _found(extract.registered_at, egrul_url(org.ogrn))
@@ -403,8 +411,9 @@ def _collect_legal(
         fedresurs_url(org.ogrn),
         html,
         parser.parse_fedresurs,
+        org.ogrn,
     )
-    kad = _registry_text(kad_url(org.ogrn), html, parser.parse_kad)
+    kad = _registry_text(kad_url(org.ogrn), html, parser.parse_kad, org.ogrn)
     return _LegalBundle((), registered, status, activity, fedresurs, kad)
 
 
