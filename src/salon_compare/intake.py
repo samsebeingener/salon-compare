@@ -22,6 +22,7 @@ class VenueCandidate:
     venue_id: str
     title: str
     source_url: str
+    provider: str = "unknown"
 
 
 class VenueResolver(Protocol):
@@ -55,19 +56,10 @@ class PassthroughResolver:
         return [VenueCandidate(venue_id, hook.raw.strip(), url)]
 
 
-def resolve_intake(raw_hooks: Sequence[str], resolver: VenueResolver) -> IntakeOutcome:
-    filled = [item.strip() for item in raw_hooks if item.strip()]
-    classified = [classify_hook(item) for item in filled]
-    if len(filled) != 3:
-        return IntakeOutcome(
-            IntakeStatus.NEED_THREE,
-            classified,
-            [],
-            "Нужны три зацепки.",
-            None,
-        )
-
-    slots = [list(resolver.resolve(hook)) for hook in classified]
+def _finish_slots(
+    classified: list[ClassifiedHook],
+    slots: list[list[VenueCandidate]],
+) -> IntakeOutcome:
     if any(len(slot) != 1 for slot in slots):
         return IntakeOutcome(
             IntakeStatus.NEED_DISAMBIGUATION,
@@ -76,7 +68,6 @@ def resolve_intake(raw_hooks: Sequence[str], resolver: VenueResolver) -> IntakeO
             "Уточните точку по ссылкам. Сами не выбираем.",
             None,
         )
-
     chosen = tuple(slot[0] for slot in slots)
     seen: dict[str, VenueCandidate] = {}
     for candidate in chosen:
@@ -93,11 +84,55 @@ def resolve_intake(raw_hooks: Sequence[str], resolver: VenueResolver) -> IntakeO
                 None,
             )
         seen[candidate.venue_id] = candidate
-
     return IntakeOutcome(
         IntakeStatus.READY,
         classified,
         slots,
-        "Три разные точки. Сбор данных ещё не включён.",
+        "Три разные точки.",
         chosen,
     )
+
+
+def resolve_intake(raw_hooks: Sequence[str], resolver: VenueResolver) -> IntakeOutcome:
+    filled = [item.strip() for item in raw_hooks if item.strip()]
+    classified = [classify_hook(item) for item in filled]
+    if len(filled) != 3:
+        return IntakeOutcome(
+            IntakeStatus.NEED_THREE,
+            classified,
+            [],
+            "Нужны три зацепки.",
+            None,
+        )
+    slots = [list(resolver.resolve(hook)) for hook in classified]
+    return _finish_slots(classified, slots)
+
+
+def apply_slot_choices(
+    outcome: IntakeOutcome,
+    choices: dict[int, str],
+) -> IntakeOutcome:
+    slots: list[list[VenueCandidate]] = []
+    for index, slot in enumerate(outcome.candidates_by_slot):
+        if len(slot) == 1:
+            slots.append(slot)
+            continue
+        if len(slot) == 0:
+            return IntakeOutcome(
+                IntakeStatus.NEED_DISAMBIGUATION,
+                outcome.classified,
+                outcome.candidates_by_slot,
+                "Уточните зацепку: на картах ничего не нашли.",
+                None,
+            )
+        picked = [item for item in slot if item.venue_id == choices.get(index)]
+        if len(picked) != 1:
+            return IntakeOutcome(
+                IntakeStatus.NEED_DISAMBIGUATION,
+                outcome.classified,
+                outcome.candidates_by_slot,
+                "Выберите точку по ссылке. Сами не выбираем.",
+                None,
+            )
+        slots.append(picked)
+    return _finish_slots(outcome.classified, slots)

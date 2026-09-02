@@ -2,7 +2,93 @@
 
 from __future__ import annotations
 
+import re
+from urllib.parse import urlparse
+
 from salon_compare.collect import MapCard
+from salon_compare.hooks import ClassifiedHook
+from salon_compare.intake import VenueCandidate
+
+_FIRM = re.compile(r"/firm/([^/?#]+)", re.IGNORECASE)
+_ORG = re.compile(r"/org/([^/?#]+)", re.IGNORECASE)
+
+
+def item_by_id(items: list[dict[str, object]], ident: str) -> dict[str, object] | None:
+    for item in items:
+        if str(item.get("id")) == ident:
+            return item
+    return None
+
+
+def candidates_from_twogis_items(
+    items: list[dict[str, object]],
+) -> list[VenueCandidate]:
+    found: list[VenueCandidate] = []
+    for item in items:
+        ident_raw = item.get("id")
+        if ident_raw is None:
+            continue
+        ident = str(ident_raw)
+        raw_name = item.get("name") or item.get("address_name") or ident
+        name = raw_name if isinstance(raw_name, str) else ident
+        found.append(
+            VenueCandidate(
+                f"twogis:{ident}",
+                name,
+                f"https://2gis.ru/firm/{ident}",
+                "twogis",
+            )
+        )
+    return found
+
+
+def candidates_from_yandex_features(
+    features: list[dict[str, object]],
+) -> list[VenueCandidate]:
+    found: list[VenueCandidate] = []
+    for feature in features:
+        card = card_from_yandex(feature)
+        ident = _yandex_id(feature)
+        if not ident:
+            continue
+        title = ident
+        props = feature.get("properties")
+        if isinstance(props, dict):
+            meta = props.get("CompanyMetaData")
+            if isinstance(meta, dict):
+                raw_name = meta.get("name")
+                if isinstance(raw_name, str) and raw_name:
+                    title = raw_name
+        url = card.source_url or card.html_url or f"https://yandex.ru/maps/org/{ident}"
+        found.append(VenueCandidate(f"yandex:{ident}", title, url, "yandex"))
+    return found
+
+
+def _yandex_id(feature: dict[str, object]) -> str:
+    props = feature.get("properties")
+    if not isinstance(props, dict):
+        return ""
+    meta = props.get("CompanyMetaData")
+    if isinstance(meta, dict):
+        ident = meta.get("id")
+        if isinstance(ident, str) and ident:
+            return ident
+    ident = props.get("id") or props.get("companyId")
+    return ident if isinstance(ident, str) else ""
+
+
+def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
+    url = hook.normalized
+    host = urlparse(url).netloc.lower()
+    firm = _FIRM.search(url)
+    if "2gis." in host and firm:
+        ident = firm.group(1)
+        return VenueCandidate(f"twogis:{ident}", ident, url, "twogis")
+    org = _ORG.search(url)
+    if "yandex." in host and org:
+        ident = org.group(1)
+        return VenueCandidate(f"yandex:{ident}", ident, url, "yandex")
+    return VenueCandidate(f"maps:{url}", url, url, "maps")
 
 
 def card_from_twogis(item: dict[str, object]) -> MapCard:
