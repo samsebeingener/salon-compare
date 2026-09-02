@@ -233,6 +233,27 @@ def test_website_ok_and_forbidden() -> None:
     closed = collect_place(_venue(), classify_hook(site), deps_403)
     assert closed.site_about.value is None
     assert closed.site_about.trust is Trust.MISSING
+    assert f"{site}.html" not in html_403.calls
+
+
+def test_website_empty_retries_html_suffix() -> None:
+    site = "https://pinklemon-nails.ru/baumanskaya"
+    html_url = f"{site}.html"
+    html = FakeHtml(
+        {
+            site: HtmlFetchResult("empty", "404", site),
+            html_url: HtmlFetchResult("ok", "<html>о нас</html>", html_url),
+        }
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(None),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+    )
+    place = collect_place(_venue(), classify_hook(site), deps)
+    assert place.site_about.value == "Студия у метро"
+    assert place.site_about.source_url == html_url
+    assert html_url in html.calls
 
 
 def test_ogrn_hook_loads_site_from_twogis_website() -> None:

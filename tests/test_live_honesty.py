@@ -149,3 +149,4 @@ def test_readme_records_live_probe() -> None:
     assert "404" in text
     assert "baumanskaya.html" in text
     assert "оболоч" in text.lower() or "капч" in text.lower()
+    assert "по названию салона" in text

@@ -159,6 +159,32 @@ def test_ogrn_fills_three_registries() -> None:
     assert "founder" not in PlaceRecord.model_fields
 
 
+def test_labeled_ogrn_reads_marker_not_bare_digits() -> None:
+    from salon_compare.legal import labeled_ogrn
+
+    assert labeled_ogrn(f"ОГРН {OGRN} в подвале") == OGRN
+    assert labeled_ogrn("ОГРН/ОГРНИП 1147746349552") == OGRN
+    assert labeled_ogrn("id 1495810359387 в скрипте") is None
+
+
+def test_site_labeled_ogrn_hits_egrul_when_maps_empty() -> None:
+    site = "https://studio.example/place"
+    html = FakeHtml(
+        {site: HtmlFetchResult("ok", f"<p>ОГРН {OGRN}</p>", site)}
+    )
+    collect_place(_venue(), classify_hook(site), _deps(html))
+    assert egrul_url(OGRN) in html.calls
+
+
+def test_bare_digits_on_site_do_not_hit_egrul() -> None:
+    site = "https://studio.example/place"
+    html = FakeHtml(
+        {site: HtmlFetchResult("ok", "<script>1495810359387</script>", site)}
+    )
+    collect_place(_venue(), classify_hook(site), _deps(html))
+    assert egrul_url("1495810359387") not in html.calls
+
+
 def test_no_ogrn_does_not_claim_no_debts() -> None:
     html = FakeHtml({})
     place = collect_place(
