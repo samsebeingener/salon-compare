@@ -277,9 +277,39 @@ def test_ogrn_hook_loads_site_from_twogis_website() -> None:
     assert site in html.calls
 
 
+def test_twogis_hours_district_metro_fill_place() -> None:
+    twogis = MapCard(
+        rating=4.7,
+        review_count=51,
+        address="Новокузнецкая улица, 42 ст5",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        hours="пн-вс 10:00-22:00",
+        district="Замоскворечье",
+        metro="Павелецкая, 140 м",
+    )
+    deps = CollectDeps(
+        yandex=FakeMapApi(None),
+        twogis=FakeMapApi(twogis),
+        html=FakeHtml({}),
+        parser=FakeParser(HtmlExtract()),
+    )
+    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.hours.value == "пн-вс 10:00-22:00"
+    assert place.district.value == "Замоскворечье"
+    assert place.metro.value == "Павелецкая, 140 м"
+    assert place.hours.trust is Trust.FOUND
+    assert place.district.trust is Trust.FOUND
+    assert place.metro.trust is Trust.FOUND
+
+
 def test_app_shows_fields_table_without_score_index() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
     assert "collect_three" in text or "collect_place" in text
     assert "не найдено" in lowered
     assert "покупай" not in lowered
+    assert "Район" in text
+    assert "Метро" in text

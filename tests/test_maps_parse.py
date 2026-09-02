@@ -156,3 +156,48 @@ def test_twogis_search_does_not_repeat_mall_already_in_street() -> None:
         ]
     )
     assert found[0].address == "Москва, ТЦ Атриум, 1 этаж"
+
+
+def _week_hours(start: str = "10:00", end: str = "22:00") -> dict[str, object]:
+    slot = {"working_hours": [{"from": start, "to": end}]}
+    return {
+        day: slot
+        for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    }
+
+
+def test_twogis_card_reads_hours_district_metro() -> None:
+    card = card_from_twogis(
+        {
+            "id": "firm-1",
+            "schedule": _week_hours(),
+            "adm_div": [
+                {"type": "city", "name": "Москва"},
+                {"type": "district", "name": "Замоскворечье"},
+            ],
+            "links": {
+                "nearest_stations": [
+                    {
+                        "name": "Павелецкая",
+                        "distance": 140,
+                        "route_types": ["metro"],
+                    },
+                    {
+                        "name": "Новокузнецкая",
+                        "distance": 800,
+                        "route_types": ["metro"],
+                    },
+                ]
+            },
+        }
+    )
+    assert card.hours == "пн-вс 10:00-22:00"
+    assert card.district == "Замоскворечье"
+    assert card.metro == "Павелецкая, 140 м"
+
+
+def test_twogis_card_missing_hours_district_metro() -> None:
+    card = card_from_twogis({"id": "firm-1"})
+    assert card.hours is None
+    assert card.district is None
+    assert card.metro is None
