@@ -33,8 +33,6 @@ def _place(**fields: object) -> PlaceRecord:
     payload: dict[str, object] = {
         "venue_id": "v1",
         "title": "Студия",
-        "yandex_rating": _gap(),
-        "yandex_review_count": _gap(),
         "twogis_rating": _gap(),
         "twogis_review_count": _gap(),
         "address": _gap(),
@@ -100,7 +98,7 @@ def test_card_lists_missing_fields() -> None:
     row = _place(twogis_rating=_found(4.6), title="Вишня")
     card = card_payload(row, score_place(row, as_of=AS_OF))
     assert card["title"] == "Вишня"
-    assert "Яндекс рейтинг" in card["missing"]
+    assert "Яндекс рейтинг" not in card["missing"]
     found = [item for item in card["fields"] if item["label"] == "2ГИС рейтинг"]
     assert found[0]["value"] == 4.6
     assert found[0]["source_url"] == "https://example.test"

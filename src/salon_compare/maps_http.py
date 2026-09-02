@@ -10,15 +10,17 @@ from salon_compare.collect import EmptyMapApi, MapCard
 from salon_compare.intake import VenueCandidate
 from salon_compare.maps_parse import (
     candidates_from_twogis_items,
-    candidates_from_yandex_features,
     card_from_twogis,
-    card_from_yandex,
     item_by_id,
     neighbors_from_twogis_items,
 )
 from salon_compare.proxy import httpx_client_kwargs
 
-TWOGIS_FIELDS = "items.reviews,items.address_name,items.point"
+TWOGIS_FIELDS = (
+    "items.reviews,items.address_name,items.point,"
+    "items.contact_groups,items.schedule,items.org,items.address,"
+    "items.adm_div,items.links"
+)
 MOSCOW_REGION_ID = "32"
 
 
@@ -78,6 +80,9 @@ def _with_twogis_neighbors(key: str, ident: str, card: MapCard) -> MapCard:
         card.hours,
         card.last_review,
         card.plus_minus,
+        card.website,
+        card.district,
+        card.metro,
     )
 
 
@@ -89,15 +94,6 @@ def _twogis_items(payload: object) -> list[dict[str, object]]:
     if not isinstance(items, list):
         return []
     return [item for item in items if isinstance(item, dict)]
-
-
-def _yandex_features(payload: object) -> list[dict[str, object]]:
-    if not isinstance(payload, dict):
-        return []
-    features = payload.get("features")
-    if not isinstance(features, list):
-        return []
-    return [item for item in features if isinstance(item, dict)]
 
 
 class TwoGisApi:
@@ -137,55 +133,6 @@ class TwoGisApi:
         return _with_twogis_neighbors(self._key, ident, card)
 
 
-class YandexPlacesApi:
-    def __init__(self, key: str) -> None:
-        self._key = key
-
-    def search(self, query: str) -> list[VenueCandidate]:
-        payload = _get_json(
-            "https://search-maps.yandex.ru/v1/",
-            {
-                "apikey": self._key,
-                "text": query,
-                "lang": "ru_RU",
-                "type": "biz",
-                "results": "5",
-            },
-        )
-        return candidates_from_yandex_features(_yandex_features(payload))
-
-    def fetch_card(self, venue: VenueCandidate) -> MapCard | None:
-        if not venue.venue_id.startswith("yandex:"):
-            return None
-        ident = venue.venue_id.removeprefix("yandex:")
-        payload = _get_json(
-            "https://search-maps.yandex.ru/v1/",
-            {
-                "apikey": self._key,
-                "text": venue.title,
-                "lang": "ru_RU",
-                "type": "biz",
-                "results": "5",
-            },
-        )
-        for feature in _yandex_features(payload):
-            props = feature.get("properties")
-            meta: object = None
-            if isinstance(props, dict):
-                meta = props.get("CompanyMetaData")
-            feature_id = ""
-            if isinstance(meta, dict):
-                raw_id = meta.get("id")
-                if isinstance(raw_id, str):
-                    feature_id = raw_id
-            if feature_id == ident:
-                return card_from_yandex(feature)
-        return None
-
-
-def map_api_from_env(kind: str) -> EmptyMapApi | TwoGisApi | YandexPlacesApi:
-    if kind == "twogis":
-        key = os.environ.get("TWOGIS_API_KEY", "").strip()
-        return TwoGisApi(key) if key else EmptyMapApi()
-    key = os.environ.get("YANDEX_MAPS_API_KEY", "").strip()
-    return YandexPlacesApi(key) if key else EmptyMapApi()
+def map_api_from_env() -> EmptyMapApi | TwoGisApi:
+    key = os.environ.get("TWOGIS_API_KEY", "").strip()
+    return TwoGisApi(key) if key else EmptyMapApi()

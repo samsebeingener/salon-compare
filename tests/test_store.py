@@ -27,8 +27,6 @@ def _row() -> PlaceRecord:
     return PlaceRecord(
         venue_id="p1",
         title="Ногтевой Сервис",
-        yandex_rating=_gap(),
-        yandex_review_count=_gap(),
         twogis_rating=_gap(),
         twogis_review_count=_gap(),
         address=_gap(),

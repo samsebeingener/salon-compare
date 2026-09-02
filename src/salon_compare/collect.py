@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 from typing import Protocol
+from urllib.parse import quote_plus, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,8 +23,22 @@ from salon_compare.legal import (
     fedresurs_url,
     is_ogrn,
     kad_url,
+    labeled_inn,
+    labeled_ogrn,
+    rbc_company_snippet,
+    rbc_search_url,
     resolve_legal_orgs,
     rusprofile_card_urls,
+)
+from salon_compare.site_enrichment import (
+    MAX_SITE_PAGES,
+    ddg_site_search_queries,
+    ddg_site_urls,
+    domain_probe_urls,
+    internal_legal_links,
+    page_matches_address,
+    rbc_company_card_url,
+    rbc_website,
 )
 
 
@@ -74,13 +89,14 @@ class HtmlExtract(BaseModel):
     hours: str | None = None
     last_review: str | None = None
     plus_minus: str | None = None
+    website: str | None = None
 
 
 class PlaceRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     venue_id: str
     title: str
-    yandex_rating: SourcedField
-    yandex_review_count: SourcedField
     twogis_rating: SourcedField
     twogis_review_count: SourcedField
     address: SourcedField
@@ -95,12 +111,11 @@ class PlaceRecord(BaseModel):
     legal_candidates: tuple[LegalOrg, ...] = ()
     unreliable: bool = False
     hours: SourcedField = Field(default_factory=SourcedField)
-    yandex_last_review: SourcedField = Field(default_factory=SourcedField)
     twogis_last_review: SourcedField = Field(default_factory=SourcedField)
-    yandex_reviews_90d: SourcedField = Field(default_factory=SourcedField)
     twogis_reviews_90d: SourcedField = Field(default_factory=SourcedField)
-    yandex_plus_minus: SourcedField = Field(default_factory=SourcedField)
     twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
+    district: SourcedField = Field(default_factory=SourcedField)
+    metro: SourcedField = Field(default_factory=SourcedField)
 
 
 @dataclass(frozen=True)
@@ -119,6 +134,9 @@ class MapCard:
     hours: str | None = None
     last_review: str | None = None
     plus_minus: str | None = None
+    website: str | None = None
+    district: str | None = None
+    metro: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,7 +160,6 @@ class HtmlParser(Protocol):
 
 @dataclass(frozen=True)
 class CollectDeps:
-    yandex: MapApi
     twogis: MapApi
     html: HtmlFetcher
     parser: HtmlParser
@@ -158,12 +175,6 @@ class EmptyMapApi:
     def fetch_card(self, venue: VenueCandidate) -> MapCard | None:
         del venue
         return None
-
-
-class EmptyParser:
-    def parse(self, html: str) -> HtmlExtract:
-        del html
-        return HtmlExtract()
 
 
 class _OnceHtml:
@@ -189,9 +200,179 @@ def _weak(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.WEAK)
 
 
+def html_suffix_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    path = parsed.path
+    if not path or path.endswith("/"):
+        return None
+    last = path.rsplit("/", 1)[-1]
+    if not last or "." in last:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}{path}.html"
+
+
+def _site_urls(
+    hook: ClassifiedHook,
+    twogis: MapCard,
+) -> list[str]:
+    raw: list[str] = []
+    if hook.kind is HookKind.WEBSITE:
+        raw.append(hook.normalized)
+    if twogis.website:
+        raw.append(twogis.website)
+    seen: set[str] = set()
+    urls: list[str] = []
+    for url in raw:
+        key = url.rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        urls.append(url)
+    return urls
+
+
+def _website_from_maps_html(
+    html_url: str,
+    html: HtmlFetcher,
+    parser: HtmlParser,
+) -> str | None:
+    if not html_url:
+        return None
+    page = html.get(html_url)
+    if page.status != "ok":
+        return None
+    found = parser.parse(page.body).website
+    if not found:
+        return None
+    host = urlparse(found).netloc.lower()
+    if "2gis." in host:
+        return None
+    return found
+
+
+def _website_from_rbc(
+    ogrn: str,
+    html: HtmlFetcher,
+    pacer: RequestPacer,
+) -> str | None:
+    search_url = rbc_search_url(ogrn)
+    search = _paced_get(html, search_url, pacer)
+    if search.status != "ok":
+        return None
+    card_url = rbc_company_card_url(search.body, ogrn)
+    if card_url is None:
+        return None
+    card = html.get(card_url)
+    if card.status != "ok":
+        return None
+    return rbc_website(card.body)
+
+
+def _discover_site_urls(
+    title: str,
+    address: str | None,
+    html: HtmlFetcher,
+    pacer: RequestPacer,
+) -> list[str]:
+    if not title.strip():
+        return []
+    for query in ddg_site_search_queries(title, address):
+        search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        page = _paced_get(html, search_url, pacer)
+        if page.status != "ok":
+            continue
+        urls = ddg_site_urls(page.body)
+        if urls:
+            return urls
+    for url in domain_probe_urls(title):
+        page = html.get(url)
+        if page.status != "ok":
+            continue
+        if page_matches_address(page.body, address):
+            return [url]
+    return []
+
+
+def _collect_site(
+    hook: ClassifiedHook,
+    twogis: MapCard,
+    venue_title: str,
+    venue_address: str | None,
+    html: HtmlFetcher,
+    parser: HtmlParser,
+    pacer: RequestPacer,
+) -> tuple[SourcedField, str | None, str | None]:
+    maps_site = twogis.website or _website_from_maps_html(twogis.html_url, html, parser)
+    ogrn: str | None = None
+    inn: str | None = None
+    seen: set[str] = set()
+    queue: list[str] = list(_site_urls(hook, twogis))
+    if maps_site:
+        key = maps_site.rstrip("/")
+        if key not in {item.rstrip("/") for item in queue}:
+            queue.append(maps_site)
+    if hook.kind is HookKind.OGRN:
+        rbc_site = _website_from_rbc(hook.normalized, html, pacer)
+        if rbc_site:
+            key = rbc_site.rstrip("/")
+            known = {item.rstrip("/") for item in queue}
+            if key not in known:
+                queue.append(rbc_site)
+    if not queue and hook.kind in {HookKind.NAME, HookKind.MAPS_LINK}:
+        blocked = False
+        if twogis.html_url:
+            page = html.get(twogis.html_url)
+            blocked = page.status == "blocked"
+        if blocked or not twogis.html_url:
+            addr = venue_address or twogis.address
+            queue.extend(_discover_site_urls(venue_title, addr, html, pacer))
+    about_value: str | None = None
+    about_url: str | None = None
+    pages_fetched = 0
+    index = 0
+    while index < len(queue) and pages_fetched < MAX_SITE_PAGES:
+        url = queue[index]
+        index += 1
+        key = url.rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        page = html.get(url)
+        pages_fetched += 1
+        if page.status == "ok":
+            if ogrn is None:
+                ogrn = labeled_ogrn(page.body)
+            if inn is None:
+                inn = labeled_inn(page.body)
+            extracted = parser.parse(page.body).about
+            if extracted is not None and about_value is None:
+                about_value = extracted
+                about_url = url
+            if ogrn is None or inn is None:
+                for link in internal_legal_links(page.body, url):
+                    link_key = link.rstrip("/")
+                    if link_key not in seen:
+                        queue.append(link)
+            continue
+        if page.status != "empty":
+            continue
+        extra = html_suffix_url(url)
+        if extra is not None and extra.rstrip("/") not in seen:
+            queue.append(extra)
+    if about_value and about_url:
+        about_field = _found(about_value, about_url)
+    else:
+        about_field = _missing()
+    return about_field, ogrn, inn
+
+
 def _is_paced(url: str) -> bool:
     lowered = url.lower()
-    return "duckduckgo.com" in lowered or "rusprofile.ru" in lowered
+    return (
+        "duckduckgo.com" in lowered
+        or "rusprofile.ru" in lowered
+        or "companies.rbc.ru" in lowered
+    )
 
 
 def _paced_get(html: HtmlFetcher, url: str, pacer: RequestPacer) -> HtmlFetchResult:
@@ -236,8 +417,6 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
     return PlaceRecord(
         venue_id=venue.venue_id,
         title=venue.title,
-        yandex_rating=gap,
-        yandex_review_count=gap,
         twogis_rating=gap,
         twogis_review_count=gap,
         address=gap,
@@ -264,6 +443,12 @@ def _mark_90d(last: SourcedField, as_of: date) -> SourcedField:
     return SourcedField(value=flag, source_url=last.source_url, trust=last.trust)
 
 
+def _venue_address(address: SourcedField, fallback: str | None) -> str | None:
+    if address.trust is Trust.FOUND and isinstance(address.value, str):
+        return address.value
+    return fallback
+
+
 def collect_place(
     venue: VenueCandidate,
     hook: ClassifiedHook,
@@ -271,25 +456,8 @@ def collect_place(
     legal_choice: str | None = None,
 ) -> PlaceRecord:
     html = _OnceHtml(deps.html)
-    yandex = _safe_card(deps.yandex, venue)
     twogis = _safe_card(deps.twogis, venue)
 
-    yandex_rating = _field(
-        yandex.rating,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.rating,
-        html,
-        deps.parser,
-    )
-    yandex_reviews = _field(
-        yandex.review_count,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.review_count,
-        html,
-        deps.parser,
-    )
     twogis_rating = _field(
         twogis.rating,
         twogis.source_url,
@@ -307,96 +475,66 @@ def collect_place(
         deps.parser,
     )
     address = _field(
-        yandex.address,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.address,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.address,
         html,
         deps.parser,
     )
-    if address.trust is Trust.MISSING:
-        address = _field(
-            twogis.address,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.address,
-            html,
-            deps.parser,
-        )
 
     neighbor_count = _field(
-        yandex.neighbor_count,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.neighbor_count,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.neighbor_count,
         html,
         deps.parser,
     )
-    if neighbor_count.trust is Trust.MISSING:
-        neighbor_count = _field(
-            twogis.neighbor_count,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.neighbor_count,
-            html,
-            deps.parser,
-        )
     neighbor_avg = _field(
-        yandex.neighbor_avg_rating,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.neighbor_avg_rating,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.neighbor_avg_rating,
         html,
         deps.parser,
     )
-    our = yandex_rating.value if yandex_rating.trust is Trust.FOUND else None
+    our = twogis_rating.value if twogis_rating.trust is Trust.FOUND else None
     if (
         isinstance(our, int | float)
         and isinstance(neighbor_avg.value, int | float)
         and neighbor_avg.trust is Trust.FOUND
     ):
         label = "выше" if float(neighbor_avg.value) > float(our) else "ниже"
-        neighbor_vs = _found(label, neighbor_avg.source_url or yandex.source_url)
+        neighbor_vs = _found(label, neighbor_avg.source_url or twogis.source_url)
     else:
         neighbor_vs = _missing()
 
-    site_about = _missing()
-    if hook.kind is HookKind.WEBSITE:
-        site_about = _field(
-            None,
-            "",
-            hook.normalized,
-            lambda item: item.about,
-            html,
-            deps.parser,
-        )
-
+    site_about, site_ogrn, site_inn = _collect_site(
+        hook,
+        twogis,
+        venue.title,
+        _venue_address(address, twogis.address),
+        html,
+        deps.parser,
+        deps.pacer,
+    )
     legal = _collect_legal(
-        hook, yandex, twogis, html, deps.legal, legal_choice, deps.pacer
+        hook,
+        twogis,
+        html,
+        deps.legal,
+        legal_choice,
+        deps.pacer,
+        extra_ogrn=site_ogrn,
+        extra_inn=site_inn,
     )
     as_of = date.today()
     hours = _field(
-        yandex.hours,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.hours,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.hours,
-        html,
-        deps.parser,
-    )
-    if hours.trust is Trust.MISSING:
-        hours = _field(
-            twogis.hours,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.hours,
-            html,
-            deps.parser,
-        )
-    yandex_last = _field(
-        yandex.last_review,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.last_review,
         html,
         deps.parser,
     )
@@ -405,14 +543,6 @@ def collect_place(
         twogis.source_url,
         twogis.html_url,
         lambda item: item.last_review,
-        html,
-        deps.parser,
-    )
-    yandex_pm = _field(
-        yandex.plus_minus,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.plus_minus,
         html,
         deps.parser,
     )
@@ -428,8 +558,6 @@ def collect_place(
     return PlaceRecord(
         venue_id=venue.venue_id,
         title=venue.title,
-        yandex_rating=yandex_rating,
-        yandex_review_count=yandex_reviews,
         twogis_rating=twogis_rating,
         twogis_review_count=twogis_reviews,
         address=address,
@@ -443,12 +571,15 @@ def collect_place(
         kad=legal.kad,
         legal_candidates=legal.candidates,
         hours=hours,
-        yandex_last_review=yandex_last,
         twogis_last_review=twogis_last,
-        yandex_reviews_90d=_mark_90d(yandex_last, as_of),
         twogis_reviews_90d=_mark_90d(twogis_last, as_of),
-        yandex_plus_minus=yandex_pm,
         twogis_plus_minus=twogis_pm,
+        district=(
+            _found(twogis.district, twogis.source_url)
+            if twogis.district
+            else _missing()
+        ),
+        metro=(_found(twogis.metro, twogis.source_url) if twogis.metro else _missing()),
     )
 
 
@@ -462,6 +593,17 @@ class _LegalBundle:
     kad: SourcedField
 
 
+def _inn_hits_from_value(
+    inn: str,
+    html: HtmlFetcher,
+    parser: LegalParser,
+) -> list[LegalOrg]:
+    page = html.get(egrul_url(inn))
+    if page.status != "ok":
+        return []
+    return list(parser.parse_egrul(page.body).orgs)
+
+
 def _inn_hits(
     hook: ClassifiedHook,
     html: HtmlFetcher,
@@ -472,10 +614,7 @@ def _inn_hits(
         return []
     if legal_choice:
         return [LegalOrg(legal_choice, legal_choice, egrul_url(legal_choice))]
-    page = html.get(egrul_url(hook.normalized))
-    if page.status != "ok":
-        return []
-    return list(parser.parse_egrul(page.body).orgs)
+    return _inn_hits_from_value(hook.normalized, html, parser)
 
 
 def _registry_text(
@@ -509,6 +648,32 @@ def _official_egrul(
     registered = _found(extract.registered_at, source) if extract.registered_at else gap
     status = _found(extract.status, source) if extract.status else gap
     activity = _found(extract.activity, source) if extract.activity else gap
+    return registered, status, activity
+
+
+def _rbc_egrul(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField]:
+    url = rbc_search_url(org.ogrn)
+    page = html.get(url)
+    if page.status != "ok":
+        return gap, gap, gap
+    snippet = rbc_company_snippet(page.body, org.ogrn)
+    if snippet is None:
+        return gap, gap, gap
+    extract = parser.parse_egrul(snippet)
+    registered = _weak(extract.registered_at, url) if extract.registered_at else gap
+    status = _weak(extract.status, url) if extract.status else gap
+    activity = _weak(extract.activity, url) if extract.activity else gap
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        return gap, gap, gap
     return registered, status, activity
 
 
@@ -546,20 +711,24 @@ def _rusprofile_egrul(
 
 def _collect_legal(
     hook: ClassifiedHook,
-    yandex: MapCard,
     twogis: MapCard,
     html: HtmlFetcher,
     parser: LegalParser,
     legal_choice: str | None,
     pacer: RequestPacer,
+    extra_ogrn: str | None = None,
+    extra_inn: str | None = None,
 ) -> _LegalBundle:
     gap = _missing()
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
+    inn_hits = _inn_hits(hook, html, parser, legal_choice)
+    if not inn_hits and extra_inn:
+        inn_hits = _inn_hits_from_value(extra_inn, html, parser)
     orgs = resolve_legal_orgs(
         hook,
-        yandex,
         twogis,
-        _inn_hits(hook, html, parser, legal_choice),
+        inn_hits,
+        extra_ogrn=extra_ogrn,
     )
     if legal_choice:
         picked = [item for item in orgs if item.ogrn == legal_choice]
@@ -573,6 +742,12 @@ def _collect_legal(
     if not is_ogrn(org.ogrn):
         return empty
     registered, status, activity = _official_egrul(org, html, parser, gap)
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        registered, status, activity = _rbc_egrul(org, html, parser, gap)
     if (
         registered.trust is Trust.MISSING
         and status.trust is Trust.MISSING

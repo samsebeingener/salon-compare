@@ -19,6 +19,7 @@ from salon_compare.intake import (
     IntakeStatus,
     VenueCandidate,
     apply_slot_choices,
+    candidate_label,
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
@@ -35,7 +36,7 @@ from salon_compare.report import (
     patch_field,
     rows_fingerprint,
 )
-from salon_compare.resolver import MapsSearchResolver
+from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
 from salon_compare.score import score_place
 from salon_compare.store import (
     collect_cache_key,
@@ -96,7 +97,7 @@ def _cell(field: SourcedField) -> str:
 def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
     for item in slot:
         if item.venue_id == venue_id:
-            return f"{item.title} — {item.source_url}"
+            return candidate_label(item)
     return venue_id
 
 
@@ -131,27 +132,27 @@ def _org_format(orgs: tuple[LegalOrg, ...]) -> Callable[[str], str]:
 
 
 def _resolver() -> MapsSearchResolver:
-    return MapsSearchResolver(map_api_from_env("twogis"), map_api_from_env("yandex"))
+    return MapsSearchResolver(
+        map_api_from_env(),
+        RbcBrandLookup(HttpxHtmlFetcher()),
+    )
 
 
 def _show_table(rows: list[PlaceRecord]) -> None:
     st.subheader("Поля точек")
     table: dict[str, list[str]] = {
         "Поле": [
-            "Яндекс рейтинг",
-            "Яндекс отзывы",
             "2ГИС рейтинг",
             "2ГИС отзывы",
             "Часы",
-            "Яндекс последний отзыв",
-            "Яндекс отзывы за 90 дней",
-            "Яндекс плюс/минус",
+            "Район",
+            "Метро",
             "2ГИС последний отзыв",
             "2ГИС отзывы за 90 дней",
             "2ГИС плюс/минус",
             "Адрес",
             "Соседи 500 м",
-            "Рейтинг соседей",
+            "Соседи выше/ниже",
             "Сайт «о нас»",
             "ЕГРЮЛ дата",
             "ЕГРЮЛ статус",
@@ -167,14 +168,11 @@ def _show_table(rows: list[PlaceRecord]) -> None:
         index_cell = "не найдено" if scored.index is None else str(scored.index)
         heading = f"{row.title} · недостоверный" if row.unreliable else row.title
         table[heading] = [
-            _cell(row.yandex_rating),
-            _cell(row.yandex_review_count),
             _cell(row.twogis_rating),
             _cell(row.twogis_review_count),
             _cell(row.hours),
-            _cell(row.yandex_last_review),
-            _cell(row.yandex_reviews_90d),
-            _cell(row.yandex_plus_minus),
+            _cell(row.district),
+            _cell(row.metro),
             _cell(row.twogis_last_review),
             _cell(row.twogis_reviews_90d),
             _cell(row.twogis_plus_minus),
@@ -372,7 +370,7 @@ elif outcome is not None:
                 st.write("На картах ничего не нашли. Уточните зацепку.")
             elif len(slot) == 1:
                 item = slot[0]
-                st.write(f"{item.title} — {item.source_url}")
+                st.write(candidate_label(item))
             else:
                 options = [item.venue_id for item in slot]
                 picked = st.radio(
@@ -404,8 +402,7 @@ elif outcome is not None:
                 venues,
                 classified,
                 CollectDeps(
-                    yandex=map_api_from_env("yandex"),
-                    twogis=map_api_from_env("twogis"),
+                    twogis=map_api_from_env(),
                     html=HttpxHtmlFetcher(),
                     parser=OpenHtmlParser(),
                     legal=MarkerLegalParser(),
@@ -440,4 +437,4 @@ elif outcome is not None:
     else:
         for slot in outcome.candidates_by_slot:
             for candidate in slot:
-                st.write(f"{candidate.title} — {candidate.source_url}")
+                st.write(candidate_label(candidate))

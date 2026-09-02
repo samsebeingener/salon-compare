@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from salon_compare.hooks import HookKind, classify_hook
-from salon_compare.intake import IntakeStatus, VenueCandidate, resolve_intake
+from salon_compare.intake import (
+    IntakeStatus,
+    VenueCandidate,
+    candidate_label,
+    resolve_intake,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -134,6 +139,40 @@ def test_ready_when_three_distinct_venues() -> None:
     assert outcome.chosen_venues is not None
     assert len(outcome.chosen_venues) == 3
     assert {v.venue_id for v in outcome.chosen_venues} == {"1", "2", "3"}
+
+
+def test_candidate_label_chain_includes_address() -> None:
+    same_name = "I like nails, студия маникюра"
+    first = VenueCandidate(
+        "twogis:a",
+        same_name,
+        "https://2gis.ru/firm/a",
+        "twogis",
+        "Москва, Бауманская",
+    )
+    second = VenueCandidate(
+        "twogis:b",
+        same_name,
+        "https://2gis.ru/firm/b",
+        "twogis",
+        "Москва, Таганская",
+    )
+    assert "Москва, Бауманская" in candidate_label(first)
+    assert "https://2gis.ru/firm/a" in candidate_label(first)
+    assert "Москва, Таганская" in candidate_label(second)
+    assert "https://2gis.ru/firm/b" in candidate_label(second)
+
+
+def test_candidate_label_without_address_keeps_title_and_link() -> None:
+    item = VenueCandidate(
+        "twogis:a",
+        "I like nails, студия маникюра",
+        "https://2gis.ru/firm/a",
+        "twogis",
+    )
+    assert candidate_label(item) == (
+        "I like nails, студия маникюра — https://2gis.ru/firm/a"
+    )
 
 
 def test_app_accepts_three_hooks_without_report() -> None:

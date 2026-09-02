@@ -180,11 +180,18 @@ def list_runs(path: Path | None = None) -> list[tuple[int, str]]:
     return [(int(item[0]), str(item[1])) for item in found]
 
 
+COLLECT_CACHE_VERSION = "2026-09-02-site-discovery"
+
+
 def collect_cache_key(
     venue_ids: Sequence[str],
     legal_choices: Mapping[str, str],
-) -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
-    return (tuple(venue_ids), tuple(sorted(legal_choices.items())))
+) -> tuple[str, tuple[str, ...], tuple[tuple[str, str], ...]]:
+    return (
+        COLLECT_CACHE_VERSION,
+        tuple(venue_ids),
+        tuple(sorted(legal_choices.items())),
+    )
 
 
 def rows_from_cache(

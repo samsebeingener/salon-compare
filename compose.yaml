@@ -10,7 +10,6 @@ services:
       HTTPS_PROXY: ${HTTPS_PROXY:-}
       NO_PROXY: localhost,127.0.0.1
       TWOGIS_API_KEY: ${TWOGIS_API_KEY:-}
-      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-}

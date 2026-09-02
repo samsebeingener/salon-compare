@@ -22,8 +22,6 @@ def _place(**fields: SourcedField) -> PlaceRecord:
     payload = {
         "venue_id": "v1",
         "title": "Студия",
-        "yandex_rating": _gap(),
-        "yandex_review_count": _gap(),
         "twogis_rating": _gap(),
         "twogis_review_count": _gap(),
         "address": _gap(),
@@ -47,15 +45,15 @@ def _block(score: object, name: str) -> object:
     raise AssertionError(name)
 
 
-def test_two_ratings_without_freshness_skip_reputation() -> None:
+def test_twogis_rating_without_freshness_is_plus_two() -> None:
     score = score_place(
-        _place(yandex_rating=_found(4.9), twogis_rating=_found(4.1)),
+        _place(twogis_rating=_found(4.9), twogis_review_count=_found(80)),
         as_of=AS_OF,
     )
     rep = _block(score, "reputation")
-    assert getattr(rep, "points") is None
-    assert "не ясно какой свежее" in getattr(rep, "reason")
-    assert score.index is None or score.index != 4.5
+    assert getattr(rep, "points") == 2
+    assert "не ясно какой свежее" not in getattr(rep, "reason")
+    assert score.index == round(100 * 0.4 * (2 / 3), 1)
 
 
 def test_single_high_rating_is_plus_two_not_three() -> None:

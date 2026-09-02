@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from html import unescape
 from typing import Protocol
 from urllib.parse import quote_plus, unquote
 
@@ -77,6 +78,41 @@ def ddg_rusprofile_url(ogrn: str) -> str:
     return f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
 
 
+def rbc_search_url(ogrn: str) -> str:
+    return f"https://companies.rbc.ru/search/?query={ogrn}"
+
+
+def rbc_company_snippet(html: str, ogrn: str) -> str | None:
+    needle = "company-card info-card"
+    start = 0
+    while True:
+        idx = html.find(needle, start)
+        if idx < 0:
+            return None
+        chunk = html[idx : idx + 5000]
+        has_id = f"/id/{ogrn}-" in chunk
+        has_label = "ОГРН" in chunk or "огрн" in chunk.lower()
+        if ogrn in chunk and (has_id or has_label):
+            return chunk
+        start = idx + len(needle)
+
+
+def rbc_brand_names(html: str, ogrn: str) -> list[str]:
+    snippet = rbc_company_snippet(html, ogrn)
+    if snippet is None:
+        return []
+    match = re.search(
+        r"company-name-highlight[^>]*>(.*?)</a>",
+        snippet,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if match is None:
+        return []
+    text = unescape(re.sub(r"<[^>]+>", " ", match.group(1)))
+    text = re.sub(r"\s+", " ", text).strip()
+    return [text] if text else []
+
+
 _RUSPROFILE_ID = re.compile(
     r"(?:https?://)?(?:www\.)?rusprofile\.ru/id/(\d+)",
     re.IGNORECASE,
@@ -100,24 +136,54 @@ def is_ogrn(value: str) -> bool:
     return value.isdigit() and len(value) in {13, 15}
 
 
+_LABELED_OGRN = re.compile(
+    r"огрн(?:\s*/\s*огрнип)?\s*[:№]?\s*(\d{13}|\d{15})",
+    re.IGNORECASE,
+)
+
+
+def labeled_ogrn(html: str) -> str | None:
+    match = _LABELED_OGRN.search(unescape(html))
+    if match is None:
+        return None
+    value = match.group(1)
+    return value if is_ogrn(value) else None
+
+
+_LABELED_INN = re.compile(
+    r"инн\s*[:№]?\s*(\d{10}|\d{12})",
+    re.IGNORECASE,
+)
+
+
+def labeled_inn(html: str) -> str | None:
+    match = _LABELED_INN.search(unescape(html))
+    if match is None:
+        return None
+    value = match.group(1)
+    if len(value) not in {10, 12}:
+        return None
+    return value
+
+
 def resolve_legal_orgs(
     hook: ClassifiedHook,
-    yandex: LegalIdCard,
     twogis: LegalIdCard,
     inn_hits: Sequence[LegalOrg],
+    extra_ogrn: str | None = None,
 ) -> list[LegalOrg]:
     if hook.kind is HookKind.OGRN:
         return [LegalOrg(hook.normalized, hook.raw.strip(), egrul_url(hook.normalized))]
     if hook.kind is HookKind.INN:
         return list(inn_hits)
-    found: dict[str, LegalOrg] = {}
-    for card in (yandex, twogis):
-        ident = (card.ogrn or "").strip()
-        if not is_ogrn(ident):
-            continue
-        url = card.source_url or egrul_url(ident)
-        found[ident] = LegalOrg(ident, ident, url)
-    return list(found.values())
+    ident = (twogis.ogrn or "").strip()
+    if is_ogrn(ident):
+        url = twogis.source_url or egrul_url(ident)
+        return [LegalOrg(ident, ident, url)]
+    extra = (extra_ogrn or "").strip()
+    if is_ogrn(extra):
+        return [LegalOrg(extra, extra, egrul_url(extra))]
+    return []
 
 
 _DATE = re.compile(r"\b(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b")
@@ -144,7 +210,14 @@ class MarkerLegalParser:
         elif "действующ" in lowered:
             status = "действует"
         registered = None
-        if "регистрац" in lowered:
+        reg = re.search(
+            r"дата регистрации.{0,80}?(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
+            html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if reg:
+            registered = reg.group(1)
+        elif "регистрац" in lowered:
             found_date = _DATE.search(html)
             if found_date:
                 registered = found_date.group(1)
@@ -156,6 +229,14 @@ class MarkerLegalParser:
                 cleaned = re.sub(r"<[^>]+>", " ", snippet)
                 activity = re.sub(r"\s+", " ", cleaned).strip()[:120]
                 break
+        if activity is None:
+            crumbs = re.findall(
+                r'category-breadcrumb__item"[^>]*>([^<]+)',
+                html,
+                re.IGNORECASE,
+            )
+            if crumbs:
+                activity = unescape(crumbs[-1]).strip()[:120]
         return LegalExtract(
             registered_at=registered,
             status=status,

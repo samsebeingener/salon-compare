@@ -12,7 +12,12 @@ from salon_compare.collect import (
     collect_three,
 )
 from salon_compare.hooks import classify_hook
+from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
+from salon_compare.legal import MarkerLegalParser, egrul_url, rbc_search_url
+from urllib.parse import quote_plus
+
+from salon_compare.site_enrichment import ddg_site_search_queries, ddg_site_search_url
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,8 +58,12 @@ class FakeParser:
         return self.extract
 
 
-def _venue(venue_id: str = "p1") -> VenueCandidate:
-    return VenueCandidate(venue_id, "Точка", "https://example.com/place")
+def _venue(venue_id: str = "p1", title: str = "Точка") -> VenueCandidate:
+    return VenueCandidate(venue_id, title, "https://example.com/place")
+
+
+def _vishnya_venue() -> VenueCandidate:
+    return VenueCandidate("p1", "Вишня Таганская", "https://example.com/place")
 
 
 def _full_card(url: str) -> MapCard:
@@ -75,99 +84,87 @@ def _full_card(url: str) -> MapCard:
 def test_full_api_skips_html() -> None:
     html = FakeHtml({})
     deps = CollectDeps(
-        yandex=FakeMapApi(_full_card("https://yandex.example/a")),
         twogis=FakeMapApi(_full_card("https://2gis.example/a")),
         html=html,
         parser=FakeParser(HtmlExtract()),
     )
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
-    assert place.yandex_rating.trust is Trust.FOUND
-    assert place.yandex_rating.value == 4.7
     assert place.twogis_rating.trust is Trust.FOUND
-    assert html.calls == []
+    assert place.twogis_rating.value == 4.7
+    assert html.calls == ["https://2gis.example/a/html"]
 
 
 def test_missing_api_rating_taken_from_html() -> None:
-    yandex_html = "https://yandex.example/html"
+    twogis_html = "https://2gis.example/html"
     html = FakeHtml(
-        {yandex_html: HtmlFetchResult("ok", "<html>рейтинг</html>", yandex_html)}
+        {twogis_html: HtmlFetchResult("ok", "<html>рейтинг</html>", twogis_html)}
     )
     deps = CollectDeps(
-        yandex=FakeMapApi(
+        twogis=FakeMapApi(
             MapCard(
                 rating=None,
                 review_count=10,
                 address="Москва",
-                source_url="https://yandex.example/a",
-                html_url=yandex_html,
+                source_url="https://2gis.example/a",
+                html_url=twogis_html,
                 neighbor_count=None,
                 neighbor_avg_rating=None,
             )
         ),
-        twogis=FakeMapApi(None),
         html=html,
         parser=FakeParser(HtmlExtract(rating=4.1)),
     )
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
-    assert place.yandex_rating.value == 4.1
-    assert place.yandex_rating.source_url == yandex_html
-    assert place.yandex_rating.trust is Trust.FOUND
-    assert html.calls == [yandex_html]
+    assert place.twogis_rating.value == 4.1
+    assert place.twogis_rating.source_url == twogis_html
+    assert place.twogis_rating.trust is Trust.FOUND
+    assert html.calls == [twogis_html]
 
 
 def test_captcha_html_is_missing_not_zero() -> None:
-    blocked = "https://yandex.example/html"
+    blocked = "https://2gis.example/html"
     html = FakeHtml({blocked: HtmlFetchResult("blocked", "captcha", blocked)})
     empty = MapCard(
         rating=None,
         review_count=None,
         address=None,
-        source_url="https://yandex.example/a",
+        source_url="https://2gis.example/a",
         html_url=blocked,
         neighbor_count=None,
         neighbor_avg_rating=None,
     )
     deps = CollectDeps(
-        yandex=FakeMapApi(empty),
         twogis=FakeMapApi(empty),
         html=html,
         parser=FakeParser(HtmlExtract(rating=5.0, review_count=99)),
     )
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
-    assert place.yandex_rating.trust is Trust.MISSING
-    assert place.yandex_rating.value is None
-    assert place.yandex_review_count.value is None
+    assert place.twogis_rating.trust is Trust.MISSING
     assert place.twogis_rating.value is None
+    assert place.twogis_review_count.value is None
     assert html.calls.count(blocked) == 1
 
 
-def test_one_empty_yandex_does_not_cancel_others() -> None:
-    full = _full_card("https://yandex.example/ok")
+def test_one_empty_twogis_does_not_cancel_others() -> None:
+    full = _full_card("https://2gis.example/ok")
     empty = MapCard(
         rating=None,
         review_count=None,
         address=None,
-        source_url="https://yandex.example/empty",
-        html_url="https://yandex.example/empty/html",
+        source_url="https://2gis.example/empty",
+        html_url="https://2gis.example/empty/html",
         neighbor_count=None,
         neighbor_avg_rating=None,
     )
     html = FakeHtml(
         {
-            "https://yandex.example/empty/html": HtmlFetchResult(
-                "blocked", "403", "https://yandex.example/empty/html"
+            "https://2gis.example/empty/html": HtmlFetchResult(
+                "blocked", "403", "https://2gis.example/empty/html"
             )
         }
     )
     deps = CollectDeps(
-        yandex=ScriptedMapApi({"1": empty, "2": full, "3": full}),
-        twogis=ScriptedMapApi(
-            {
-                "1": _full_card("https://2gis.example/1"),
-                "2": _full_card("https://2gis.example/2"),
-                "3": _full_card("https://2gis.example/3"),
-            }
-        ),
+        twogis=ScriptedMapApi({"1": empty, "2": full, "3": full}),
         html=html,
         parser=FakeParser(HtmlExtract()),
     )
@@ -183,42 +180,39 @@ def test_one_empty_yandex_does_not_cancel_others() -> None:
     )
     rows = collect_three(venues, hooks, deps)
     assert len(rows) == 3
-    assert rows[0].yandex_rating.trust is Trust.MISSING
-    assert rows[1].yandex_rating.trust is Trust.FOUND
-    assert rows[2].yandex_rating.trust is Trust.FOUND
-    assert rows[0].twogis_rating.trust is Trust.FOUND
+    assert rows[0].twogis_rating.trust is Trust.MISSING
+    assert rows[1].twogis_rating.trust is Trust.FOUND
+    assert rows[2].twogis_rating.trust is Trust.FOUND
 
 
 def test_neighbors_from_api_skip_html() -> None:
     html = FakeHtml({})
     deps = CollectDeps(
-        yandex=FakeMapApi(_full_card("https://yandex.example/a")),
-        twogis=FakeMapApi(None),
+        twogis=FakeMapApi(_full_card("https://2gis.example/a")),
         html=html,
         parser=FakeParser(HtmlExtract()),
     )
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.neighbor_count.value == 5
     assert place.neighbor_vs.value == "ниже"
-    assert html.calls == []
+    assert html.calls == ["https://2gis.example/a/html"]
 
 
 def test_neighbors_blocked_html_missing_not_zero() -> None:
-    url = "https://yandex.example/html"
+    url = "https://2gis.example/html"
     html = FakeHtml({url: HtmlFetchResult("blocked", "403", url)})
     deps = CollectDeps(
-        yandex=FakeMapApi(
+        twogis=FakeMapApi(
             MapCard(
                 rating=4.5,
                 review_count=1,
                 address="Москва",
-                source_url="https://yandex.example/a",
+                source_url="https://2gis.example/a",
                 html_url=url,
                 neighbor_count=None,
                 neighbor_avg_rating=None,
             )
         ),
-        twogis=FakeMapApi(None),
         html=html,
         parser=FakeParser(HtmlExtract(neighbor_count=8)),
     )
@@ -231,7 +225,6 @@ def test_website_ok_and_forbidden() -> None:
     site = "https://pinklemon-nails.ru/baumanskaya"
     html = FakeHtml({site: HtmlFetchResult("ok", "<html>о нас</html>", site)})
     deps = CollectDeps(
-        yandex=FakeMapApi(None),
         twogis=FakeMapApi(None),
         html=html,
         parser=FakeParser(HtmlExtract(about="Студия у метро")),
@@ -242,7 +235,6 @@ def test_website_ok_and_forbidden() -> None:
 
     html_403 = FakeHtml({site: HtmlFetchResult("blocked", "403", site)})
     deps_403 = CollectDeps(
-        yandex=FakeMapApi(None),
         twogis=FakeMapApi(None),
         html=html_403,
         parser=FakeParser(HtmlExtract(about="не должны взять")),
@@ -250,6 +242,295 @@ def test_website_ok_and_forbidden() -> None:
     closed = collect_place(_venue(), classify_hook(site), deps_403)
     assert closed.site_about.value is None
     assert closed.site_about.trust is Trust.MISSING
+    assert f"{site}.html" not in html_403.calls
+
+
+def test_website_empty_retries_html_suffix() -> None:
+    site = "https://pinklemon-nails.ru/baumanskaya"
+    html_url = f"{site}.html"
+    html = FakeHtml(
+        {
+            site: HtmlFetchResult("empty", "404", site),
+            html_url: HtmlFetchResult("ok", "<html>о нас</html>", html_url),
+        }
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(None),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+    )
+    place = collect_place(_venue(), classify_hook(site), deps)
+    assert place.site_about.value == "Студия у метро"
+    assert place.site_about.source_url == html_url
+    assert html_url in html.calls
+
+
+def test_name_hook_loads_about_from_twogis_html_website() -> None:
+    firm = "https://2gis.ru/firm/70000001083760610"
+    site = "https://vishnyasalon.ru"
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult(
+                "ok",
+                '{"type":"website","url":"https://vishnyasalon.ru"}',
+                firm,
+            ),
+            site: HtmlFetchResult(
+                "ok",
+                "<html><h2>О нас</h2><p>Студия маникюра на Таганке.</p></html>",
+                site,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.source_url == site
+    assert place.site_about.value is not None
+    assert "Таганке" in str(place.site_about.value)
+
+
+def test_blocked_twogis_finds_site_via_ddg() -> None:
+    firm = "https://2gis.ru/firm/1"
+    site = "https://vishnyasalon.ru"
+    ddg = ddg_site_search_url("Вишня Таганская", "Таганская улица, 3")
+    ddg_html = f'<a class="result__a" href="{site}/">Вишня</a>'
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult("blocked", "403", firm),
+            ddg: HtmlFetchResult("ok", ddg_html, ddg),
+            site: HtmlFetchResult(
+                "ok",
+                "<html><h2>О нас</h2><p>Студия маникюра на Таганке.</p></html>",
+                site,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.FOUND
+    assert place.site_about.source_url == site
+    assert "Таганке" in str(place.site_about.value)
+
+
+def test_blocked_twogis_stays_missing_without_ddg_hit() -> None:
+    firm = "https://2gis.ru/firm/1"
+    pages: dict[str, HtmlFetchResult] = {
+        firm: HtmlFetchResult("blocked", "403", firm),
+    }
+    for query in ddg_site_search_queries("Вишня Таганская", "Таганская улица, 3"):
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        pages[url] = HtmlFetchResult("ok", "<html>no links</html>", url)
+    for probe in (
+        "https://vishnyasalon.ru",
+        "https://vishnya-salon.ru",
+        "https://salon-vishnya.ru",
+        "https://vishnya.ru",
+    ):
+        pages[probe] = HtmlFetchResult("empty", "", probe)
+    html = FakeHtml(pages)
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.MISSING
+    assert place.site_about.value is None
+
+
+def test_blocked_twogis_finds_site_via_domain_probe() -> None:
+    firm = "https://2gis.ru/firm/1"
+    site = "https://vishnyasalon.ru"
+    pages: dict[str, HtmlFetchResult] = {
+        firm: HtmlFetchResult("blocked", "403", firm),
+        site: HtmlFetchResult(
+            "ok",
+            "<html><p>Таганская улица, 3</p><h2>О нас</h2><p>Студия на Таганке.</p></html>",
+            site,
+        ),
+    }
+    for query in ddg_site_search_queries("Вишня Таганская", "Таганская улица, 3"):
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        pages[url] = HtmlFetchResult("empty", "", url)
+    html = FakeHtml(pages)
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.FOUND
+    assert place.site_about.source_url == site
+
+
+def test_ogrn_hook_loads_site_from_rbc_card() -> None:
+    ogrn = "1147746349552"
+    site = "http://ilike-nails.ru"
+    rbc_search = rbc_search_url(ogrn)
+    rbc_card = f"https://companies.rbc.ru/id/{ogrn}-i-like-nails/"
+    rbc_body = (
+        '<div>Сайт</div><div class="company-detail-block__item-inner-container">'
+        f'<a href="{site}">{site}</a></div>'
+    )
+    html = FakeHtml(
+        {
+            rbc_search: HtmlFetchResult(
+                "ok",
+                f'<a href="{rbc_card}">I LIKE NAILS</a>',
+                rbc_search,
+            ),
+            rbc_card: HtmlFetchResult("ok", rbc_body, rbc_card),
+            site: HtmlFetchResult("ok", "<html>о нас</html>", site),
+        }
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(None),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия I LIKE NAILS")),
+    )
+    place = collect_place(_venue(), classify_hook(ogrn), deps)
+    assert place.site_about.value == "Студия I LIKE NAILS"
+    assert place.site_about.source_url == site
+
+
+def test_site_politica_ogrn_feeds_legal() -> None:
+    site = "https://studio.example"
+    politica = f"{site}/politica"
+    ogrn = "1234567890123"
+    egrul = egrul_url(ogrn)
+    html = FakeHtml(
+        {
+            site: HtmlFetchResult(
+                "ok",
+                '<html><a href="/politica">pol</a><p>о нас</p></html>',
+                site,
+            ),
+            politica: HtmlFetchResult("ok", f"<html>ОГРН: {ogrn}</html>", politica),
+            egrul: HtmlFetchResult(
+                "ok",
+                f"<html>{ogrn} дата регистрации 01.01.2020 действует</html>",
+                egrul,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=4.0,
+        review_count=10,
+        address="Москва",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=site,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+        legal=MarkerLegalParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.egrul_status.value == "действует"
+    assert egrul in html.calls
+
+
+def test_ogrn_hook_loads_site_from_twogis_website() -> None:
+    site = "https://studio.example"
+    html = FakeHtml({site: HtmlFetchResult("ok", "<html>о нас</html>", site)})
+    twogis = MapCard(
+        rating=4.6,
+        review_count=80,
+        address="Москва",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=site,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+    )
+    place = collect_place(_venue(), classify_hook("1147746349552"), deps)
+    assert place.site_about.value == "Студия у метро"
+    assert place.site_about.source_url == site
+    assert site in html.calls
+
+
+def test_twogis_hours_district_metro_fill_place() -> None:
+    twogis = MapCard(
+        rating=4.7,
+        review_count=51,
+        address="Новокузнецкая улица, 42 ст5",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        hours="пн-вс 10:00-22:00",
+        district="Замоскворечье",
+        metro="Павелецкая, 140 м",
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=FakeHtml({}),
+        parser=FakeParser(HtmlExtract()),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.hours.value == "пн-вс 10:00-22:00"
+    assert place.district.value == "Замоскворечье"
+    assert place.metro.value == "Павелецкая, 140 м"
+    assert place.hours.trust is Trust.FOUND
+    assert place.district.trust is Trust.FOUND
+    assert place.metro.trust is Trust.FOUND
 
 
 def test_app_shows_fields_table_without_score_index() -> None:
@@ -258,3 +539,7 @@ def test_app_shows_fields_table_without_score_index() -> None:
     assert "collect_three" in text or "collect_place" in text
     assert "не найдено" in lowered
     assert "покупай" not in lowered
+    assert "Район" in text
+    assert "Метро" in text
+    assert "Яндекс рейтинг" not in text
+    assert '"Рейтинг соседей"' not in text
