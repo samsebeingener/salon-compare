@@ -137,37 +137,46 @@ def is_ogrn(value: str) -> bool:
 
 
 _LABELED_OGRN = re.compile(
-    r"(?:огрн(?:\s*/\s*огрнип)?|огрнип)\s*[:№]?\s*(\d{15}|\d{13})",
+    r"(?:огрн(?:\s*/\s*огрнип)?|огрнип)\s*[:№]?\s*([\d\s]{13,23})",
     re.IGNORECASE,
 )
+
+
+def _normalize_digits(value: str) -> str:
+    return re.sub(r"\s+", "", value)
 
 
 def labeled_ogrn(html: str) -> str | None:
     match = _LABELED_OGRN.search(unescape(html))
     if match is None:
         return None
-    value = match.group(1)
+    value = _normalize_digits(match.group(1))
     return value if is_ogrn(value) else None
 
 
 _LABELED_INN = re.compile(
-    r"инн\s*[:№]?\s*(\d{12}|\d{10})",
+    r"инн\s*[:№]?\s*([\d\s]{10,18})",
     re.IGNORECASE,
 )
 
 
 def labeled_inn(html: str) -> str | None:
-    match = _LABELED_INN.search(unescape(html))
-    if match is None:
-        return None
-    value = match.group(1)
-    if len(value) not in {10, 12}:
-        return None
-    return value
+    body = unescape(html)
+    for match in _LABELED_INN.finditer(body):
+        value = _normalize_digits(match.group(1))
+        if len(value) in {10, 12}:
+            return value
+    return None
 
 
 _REQUISITES_NAME = re.compile(
     r"ИП\s+([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z.\s\-]{2,60}?)(?=\s+ИНН\b)",
+    re.IGNORECASE,
+)
+_REQUISITES_IP_OGRNIP = re.compile(
+    r"(?:индивидуальный\s+предприниматель|ИП)\s+"
+    r"([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z.\s\-]{2,80}?)"
+    r"(?=\s+ОГРНИП\b)",
     re.IGNORECASE,
 )
 _REQUISITES_OOO = re.compile(
@@ -186,9 +195,13 @@ def site_requisites_extract(html: str, ogrn: str) -> LegalExtract | None:
     if ip_match:
         name = f"ИП {ip_match.group(1).strip()}"
     else:
-        ooo_match = _REQUISITES_OOO.search(text)
-        if ooo_match:
-            name = f"ООО «{ooo_match.group(1).strip()}»"
+        ip_ogrnip = _REQUISITES_IP_OGRNIP.search(text)
+        if ip_ogrnip:
+            name = f"ИП {ip_ogrnip.group(1).strip()}"
+        else:
+            ooo_match = _REQUISITES_OOO.search(text)
+            if ooo_match:
+                name = f"ООО «{ooo_match.group(1).strip()}»"
     inn = labeled_inn(html)
     parts: list[str] = []
     if name:

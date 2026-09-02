@@ -19,6 +19,7 @@ from salon_compare.legal import (
     egrul_url,
     fedresurs_url,
     kad_url,
+    labeled_inn,
     labeled_ogrn,
     resolve_legal_orgs,
     site_requisites_extract,
@@ -165,6 +166,7 @@ def test_labeled_ogrn_reads_marker_not_bare_digits() -> None:
     assert labeled_ogrn(f"ОГРН {OGRN} в подвале") == OGRN
     assert labeled_ogrn("ОГРН/ОГРНИП 1147746349552") == OGRN
     assert labeled_ogrn("ОГРНИП 319774600285920") == "319774600285920"
+    assert labeled_ogrn("ОГРНИП 320 774 600 402 589") == "320774600402589"
     assert labeled_ogrn("id 1495810359387 в скрипте") is None
 
 
@@ -174,6 +176,23 @@ def test_site_requisites_extract_reads_ip_block() -> None:
     assert extract is not None
     assert "Гловский" in str(extract.activity)
     assert "750101059837" in str(extract.activity)
+
+
+def test_site_requisites_extract_kultura_oferta() -> None:
+    body = (
+        "<p>индивидуальный предприниматель Максимова Анжелика Джоновна "
+        "ОГРНИП 320 774 600 402 589 ИНН 770 500 285 069</p>"
+    )
+    extract = site_requisites_extract(body, "320774600402589")
+    assert extract is not None
+    assert "Максимова" in str(extract.activity)
+    assert "770500285069" in str(extract.activity)
+    assert "ОГРНИП 320774600402589" in str(extract.activity)
+
+
+def test_labeled_inn_skips_ogrnip_digits() -> None:
+    body = "ОГРНИП 320 774 600 402 589 ИНН 770 500 285 069"
+    assert labeled_inn(body) == "770500285069"
 
 
 def test_site_labeled_ogrn_hits_egrul_when_maps_empty() -> None:

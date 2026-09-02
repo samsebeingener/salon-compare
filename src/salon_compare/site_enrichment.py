@@ -31,6 +31,8 @@ _PATH_KEYWORDS = (
     "oplata",
     "оплат",
     "oferta",
+    "oferty",
+    "dogovor",
     "offer",
     "agreement",
     "soglashen",
@@ -69,6 +71,22 @@ _SALON_WORDS = frozenset(
         "nail",
     }
 )
+_COMPOUND_BRAND_WORDS = frozenset(
+    {
+        "маникюра",
+        "маникюр",
+        "nails",
+        "nail",
+        "beauty",
+        "красоты",
+    }
+)
+_WORD_SLUG_OVERRIDES = {
+    "маникюра": "manicura",
+    "маникюр": "manicur",
+    "педикюра": "pedicura",
+    "педикюр": "pedicur",
+}
 _TRANSLIT = {
     "а": "a",
     "б": "b",
@@ -206,8 +224,12 @@ def rbc_website(html: str) -> str | None:
 
 
 def _translit_word(word: str) -> str:
+    lowered = word.casefold().strip(".")
+    override = _WORD_SLUG_OVERRIDES.get(lowered)
+    if override is not None:
+        return override
     out: list[str] = []
-    for char in word.casefold():
+    for char in lowered:
         if char in _TRANSLIT:
             out.append(_TRANSLIT[char])
         elif char.isalnum():
@@ -223,34 +245,56 @@ def _looks_like_location(word: str) -> bool:
     return any(lowered.endswith(suffix) for suffix in _LOCATION_SUFFIXES)
 
 
-def brand_slug(title: str) -> str | None:
+def _brand_token_words(title: str) -> list[str]:
     head = title.split(",", 1)[0].strip()
     words = [item for item in re.split(r"[\s\-–—]+", head) if item]
     picked: list[str] = []
-    for word in words:
+    for index, word in enumerate(words):
         lowered = word.casefold().strip(".")
-        if lowered in _SALON_WORDS or len(lowered) < 2:
+        if len(lowered) < 4:
+            continue
+        if lowered in _SALON_WORDS:
+            if (
+                len(picked) == 1
+                and index > 0
+                and words[index - 1].casefold().strip(".") == picked[0]
+                and lowered in _COMPOUND_BRAND_WORDS
+            ):
+                picked.append(lowered)
             continue
         if picked and _looks_like_location(lowered):
             break
         picked.append(lowered)
-        break
+        if len(picked) >= 2:
+            break
+    return picked
+
+
+def brand_slug(title: str) -> str | None:
+    picked = _brand_token_words(title)
     if not picked:
         return None
-    slug = "".join(_translit_word(word) for word in picked)
+    slug = "".join(_translit_word(word) for word in picked[:1])
     return slug if len(slug) >= 3 else None
 
 
 def domain_probe_urls(title: str) -> list[str]:
+    words = _brand_token_words(title)
+    tokens = [_translit_word(word) for word in words]
+    hosts: list[str] = []
+    if len(tokens) >= 2:
+        hosts.append(f"{tokens[0]}{tokens[1]}.ru")
+        hosts.append(f"{''.join(tokens[:2])}.ru")
     slug = brand_slug(title)
-    if slug is None:
-        return []
-    hosts = [
-        f"{slug}salon.ru",
-        f"{slug}-salon.ru",
-        f"salon-{slug}.ru",
-        f"{slug}.ru",
-    ]
+    if slug is not None:
+        hosts.extend(
+            [
+                f"{slug}salon.ru",
+                f"{slug}-salon.ru",
+                f"salon-{slug}.ru",
+                f"{slug}.ru",
+            ]
+        )
     seen: set[str] = set()
     urls: list[str] = []
     for host in hosts:

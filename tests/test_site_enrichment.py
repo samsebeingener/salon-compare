@@ -83,6 +83,7 @@ def test_labeled_ogrn_still_requires_label() -> None:
     assert labeled_ogrn("<p>ОГРН: 1147746349552</p>") == OGRN
     assert labeled_ogrn("<p>1147746349552</p>") is None
     assert labeled_ogrn("<p>ОГРНИП 319774600285920</p>") == "319774600285920"
+    assert labeled_ogrn("<p>ОГРНИП 320 774 600 402 589</p>") == "320774600402589"
 
 
 def test_labeled_inn_prefers_twelve_digits() -> None:
@@ -93,3 +94,14 @@ def test_internal_legal_links_includes_payment() -> None:
     html = '<a href="/payment">оплата</a><a href="/politica">pol</a>'
     links = internal_legal_links(html, "https://vishnyasalon.ru")
     assert "https://vishnyasalon.ru/payment" in links
+
+
+def test_domain_probe_compound_kultura() -> None:
+    urls = domain_probe_urls("Культура маникюра Ани Хилькевич")
+    assert "https://kulturamanicura.ru" in urls
+
+
+def test_internal_legal_links_includes_dogovor() -> None:
+    html = '<a href="/dogovor-oferty">оферта</a>'
+    links = internal_legal_links(html, "https://kulturamanicura.ru")
+    assert "https://kulturamanicura.ru/dogovor-oferty" in links
