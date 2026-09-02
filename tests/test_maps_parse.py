@@ -113,3 +113,46 @@ def test_yandex_search_hit_keeps_address() -> None:
     )
     assert found[0].title == "I like nails"
     assert found[0].address == "Москва, Бауманская"
+
+
+def test_twogis_search_address_appends_mall_and_floor() -> None:
+    found = candidates_from_twogis_items(
+        [
+            {
+                "id": "1",
+                "name": "I like nails, студия маникюра",
+                "full_address_name": "Москва, Бауманская, 7",
+                "address_comment": "1 этаж",
+                "address": {"building_name": "ТЦ Атриум"},
+            }
+        ]
+    )
+    assert found[0].address == "Москва, Бауманская, 7, ТЦ Атриум, 1 этаж"
+
+
+def test_twogis_search_skips_missing_floor_and_mall() -> None:
+    found = candidates_from_twogis_items(
+        [
+            {
+                "id": "2",
+                "name": "I like nails, студия маникюра",
+                "address_name": "Москва, Таганская",
+            }
+        ]
+    )
+    assert found[0].address == "Москва, Таганская"
+
+
+def test_twogis_search_does_not_repeat_mall_already_in_street() -> None:
+    found = candidates_from_twogis_items(
+        [
+            {
+                "id": "3",
+                "name": "Студия",
+                "full_address_name": "Москва, ТЦ Атриум",
+                "address_comment": "1 этаж",
+                "address": {"building_name": "ТЦ Атриум"},
+            }
+        ]
+    )
+    assert found[0].address == "Москва, ТЦ Атриум, 1 этаж"
