@@ -52,7 +52,16 @@ class MapsSearchResolver:
     def resolve(self, hook: ClassifiedHook) -> list[VenueCandidate]:
         if hook.kind is HookKind.MAPS_LINK:
             found = candidate_from_maps_url(hook)
-            return [found] if found is not None else []
+            if found is None:
+                return []
+            if found.provider == "twogis" or found.title.isdigit():
+                return [found]
+            if found.provider == "yandex":
+                query = found.title.replace("_", " ")
+                hits = _unique(self._twogis.search(query))
+                if hits:
+                    return hits
+            return [found]
         query = search_query(hook)
         merged = _unique(self._twogis.search(query))
         if merged:

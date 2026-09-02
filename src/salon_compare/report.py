@@ -25,7 +25,7 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("twogis_plus_minus", "2ГИС плюс/минус"),
     ("address", "Адрес"),
     ("neighbor_count", "Соседи 500 м"),
-    ("neighbor_vs", "Рейтинг соседей"),
+    ("neighbor_vs", "Соседи выше/ниже"),
     ("site_about", "Сайт «о нас»"),
     ("egrul_registered_at", "ЕГРЮЛ дата"),
     ("egrul_status", "ЕГРЮЛ статус"),

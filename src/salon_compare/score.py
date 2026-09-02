@@ -136,7 +136,7 @@ def _reputation(row: _Fields, as_of: date) -> BlockScore:
             points=0,
             reason="много минусов в разбивке",
         )
-    fresh = _fresh_90(row, "twogis", as_of)
+    fresh = _fresh_90(row, as_of)
     count = _numeric(row.twogis_review_count)
     if chosen > 4.5 and fresh and count is not None and count >= 10:
         return BlockScore(
@@ -172,11 +172,11 @@ def _review_day(row: _Fields, name: str) -> date | None:
     return _parse_date(str(field.value))
 
 
-def _fresh_90(row: _Fields, prefix: str, today: date) -> bool:
-    flag = getattr(row, f"{prefix}_reviews_90d", None)
+def _fresh_90(row: _Fields, today: date) -> bool:
+    flag = getattr(row, "twogis_reviews_90d", None)
     if isinstance(flag, SourcedField) and str(flag.value).lower() == "да":
         return True
-    day = _review_day(row, f"{prefix}_last_review")
+    day = _review_day(row, "twogis_last_review")
     if day is None:
         return False
     return (today - day).days <= 90

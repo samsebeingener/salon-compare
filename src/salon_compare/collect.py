@@ -163,12 +163,6 @@ class EmptyMapApi:
         return None
 
 
-class EmptyParser:
-    def parse(self, html: str) -> HtmlExtract:
-        del html
-        return HtmlExtract()
-
-
 class _OnceHtml:
     def __init__(self, inner: HtmlFetcher) -> None:
         self._inner = inner

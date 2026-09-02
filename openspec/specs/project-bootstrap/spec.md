@@ -29,7 +29,7 @@
 - THEN процесс не падает из-за отсутствия ключа модели
 
 ### Requirement: Секреты не в git, образец окружения есть
-Система MUST не включать `.env` в git. Репозиторий SHALL содержать отслеживаемый `.env.example` с плейсхолдерами `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, переменными `LLM_*`, `HTTP_PROXY` и `HTTPS_PROXY`. Docker Compose SHALL передавать в контейнер `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY` и переменные `LLM_*` из окружения или файла `.env`.
+Система MUST не включать `.env` в git. Репозиторий SHALL содержать отслеживаемый `.env.example` с плейсхолдером `TWOGIS_API_KEY`, переменными `LLM_*`, `HTTP_PROXY` и `HTTPS_PROXY`. Система MUST NOT требовать ключ Яндекс Карт. Docker Compose SHALL передавать в контейнер `TWOGIS_API_KEY` и переменные `LLM_*` из окружения или файла `.env`.
 
 #### Scenario: .env не коммитится
 - GIVEN в рабочей копии есть файл `.env` с любыми значениями
@@ -40,12 +40,14 @@
 - GIVEN клонированный репозиторий без локального `.env`
 - WHEN открывают `.env.example`
 - THEN файл есть в git
-- THEN в нём есть `TWOGIS_API_KEY`, `YANDEX_MAPS_API_KEY`, переменные с префиксом `LLM_`, `HTTP_PROXY` и `HTTPS_PROXY`
+- THEN в нём есть `TWOGIS_API_KEY`, переменные с префиксом `LLM_`, `HTTP_PROXY` и `HTTPS_PROXY`
+- THEN в нём нет ключа Яндекс Карт
 
-#### Scenario: Compose прокидывает ключи карт
+#### Scenario: Compose прокидывает ключ карт
 - GIVEN заполненный `.env` с ключом 2ГИС
 - WHEN поднимают приложение через Docker Compose
-- THEN контейнер получает `TWOGIS_API_KEY` и `YANDEX_MAPS_API_KEY`
+- THEN контейнер получает `TWOGIS_API_KEY`
+- THEN ключа Яндекс Карт в compose нет
 
 ### Requirement: Прокси для LLM из РФ
 Система SHALL читать `HTTP_PROXY` и `HTTPS_PROXY` из окружения. Клиент к модели MUST передавать `trust_env=True`, чтобы при недоступности LLM из РФ работал прокси. Пустые значения MUST означать работу без прокси. README SHALL описывать эти переменные.

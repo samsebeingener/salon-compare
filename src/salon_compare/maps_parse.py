@@ -10,6 +10,7 @@ from salon_compare.hooks import ClassifiedHook
 from salon_compare.intake import VenueCandidate
 
 _FIRM = re.compile(r"/firm/([^/?#]+)", re.IGNORECASE)
+_ORG_SLUG = re.compile(r"/org/([^/?#]+)/([^/?#]+)", re.IGNORECASE)
 _ORG = re.compile(r"/org/([^/?#]+)", re.IGNORECASE)
 
 
@@ -50,6 +51,11 @@ def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
     if "2gis." in host and firm:
         ident = firm.group(1)
         return VenueCandidate(f"twogis:{ident}", ident, url, "twogis")
+    org_slug = _ORG_SLUG.search(url)
+    if "yandex." in host and org_slug:
+        slug, ident = org_slug.group(1), org_slug.group(2)
+        if not slug.isdigit():
+            return VenueCandidate(f"yandex:{ident}", slug, url, "yandex")
     org = _ORG.search(url)
     if "yandex." in host and org:
         ident = org.group(1)

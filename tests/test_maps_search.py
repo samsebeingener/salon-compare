@@ -219,9 +219,7 @@ def test_app_uses_search_resolver_and_confirmation() -> None:
     assert "st.radio" in text
     assert "apply_slot_choices" in text
     assert "candidate_label" in text
-    intake = (ROOT / "src" / "salon_compare" / "intake.py").read_text(
-        encoding="utf-8"
-    )
+    intake = (ROOT / "src" / "salon_compare" / "intake.py").read_text(encoding="utf-8")
     assert "PassthroughResolver" not in intake
     collect = (ROOT / "src" / "salon_compare" / "collect.py").read_text(
         encoding="utf-8"

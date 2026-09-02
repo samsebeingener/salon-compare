@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from salon_compare.hooks import ClassifiedHook, HookKind, classify_hook
+from salon_compare.hooks import ClassifiedHook, classify_hook
 
 
 class IntakeStatus(StrEnum):
@@ -43,24 +43,6 @@ class IntakeOutcome:
     candidates_by_slot: list[list[VenueCandidate]]
     message: str
     chosen_venues: tuple[VenueCandidate, ...] | None
-
-
-class PassthroughResolver:
-    """Одна точка на зацепку по нормализованной строке. Поиск карт — следующий шаг."""
-
-    def resolve(self, hook: ClassifiedHook) -> list[VenueCandidate]:
-        url = (
-            hook.normalized
-            if hook.kind
-            in {
-                HookKind.WEBSITE,
-                HookKind.MAPS_LINK,
-                HookKind.BOOKING_LINK,
-            }
-            else f"https://local.invalid/{hook.kind}/{hook.normalized}"
-        )
-        venue_id = f"{hook.kind.value}:{hook.normalized}"
-        return [VenueCandidate(venue_id, hook.raw.strip(), url)]
 
 
 def _finish_slots(
