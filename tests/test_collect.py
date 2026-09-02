@@ -12,6 +12,7 @@ from salon_compare.collect import (
     collect_three,
 )
 from salon_compare.hooks import classify_hook
+from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -254,6 +255,67 @@ def test_website_empty_retries_html_suffix() -> None:
     assert place.site_about.value == "Студия у метро"
     assert place.site_about.source_url == html_url
     assert html_url in html.calls
+
+
+def test_name_hook_loads_about_from_twogis_html_website() -> None:
+    firm = "https://2gis.ru/firm/70000001083760610"
+    site = "https://vishnyasalon.ru"
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult(
+                "ok",
+                '{"type":"website","url":"https://vishnyasalon.ru"}',
+                firm,
+            ),
+            site: HtmlFetchResult(
+                "ok",
+                "<html><h2>О нас</h2><p>Студия маникюра на Таганке.</p></html>",
+                site,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.source_url == site
+    assert place.site_about.value is not None
+    assert "Таганке" in str(place.site_about.value)
+
+
+def test_blocked_twogis_html_does_not_invent_site() -> None:
+    firm = "https://2gis.ru/firm/1"
+    html = FakeHtml({firm: HtmlFetchResult("blocked", "403", firm)})
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.MISSING
+    assert place.site_about.value is None
 
 
 def test_ogrn_hook_loads_site_from_twogis_website() -> None:

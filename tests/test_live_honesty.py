@@ -69,6 +69,10 @@ def test_login_word_is_not_blocked_captcha_is() -> None:
     assert classify_fetch(200, "<html>smartcaptcha</html>") == "blocked"
     assert classify_fetch(403, "<html>ok</html>") == "blocked"
     assert classify_fetch(404, "<html>not found</html>") == "empty"
+    assert (
+        classify_fetch(200, "<html>ok</html>", "https://2gis.ru/museum?return_url=x")
+        == "blocked"
+    )
 
 
 def test_kad_shell_without_ogrn_is_missing_not_has_cases() -> None:
@@ -150,3 +154,5 @@ def test_readme_records_live_probe() -> None:
     assert "baumanskaya.html" in text
     assert "оболоч" in text.lower() or "капч" in text.lower()
     assert "по названию салона" in text
+    assert "contact_groups" in text
+    assert "museum" in text

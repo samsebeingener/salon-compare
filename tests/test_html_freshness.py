@@ -118,6 +118,17 @@ def test_open_html_parser_about_from_heading() -> None:
     assert len(extract.about) <= 280
 
 
+def test_open_html_parser_reads_twogis_website_marker() -> None:
+    html = (
+        "<html>"
+        '{"type":"website","url":"http://vishnyasalon.ru"}'
+        '<a href="https://2gis.ru/moscow">карта</a>'
+        "</html>"
+    )
+    extract = OpenHtmlParser().parse(html)
+    assert extract.website == "http://vishnyasalon.ru"
+
+
 def test_high_rating_with_reviews_in_90_days_is_plus_three() -> None:
     score = score_place(
         _place(
