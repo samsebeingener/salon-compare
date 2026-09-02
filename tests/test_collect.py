@@ -15,7 +15,9 @@ from salon_compare.hooks import classify_hook
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import MarkerLegalParser, egrul_url, rbc_search_url
-from salon_compare.site_enrichment import ddg_site_search_url
+from urllib.parse import quote_plus
+
+from salon_compare.site_enrichment import ddg_site_search_queries, ddg_site_search_url
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -340,13 +342,20 @@ def test_blocked_twogis_finds_site_via_ddg() -> None:
 
 def test_blocked_twogis_stays_missing_without_ddg_hit() -> None:
     firm = "https://2gis.ru/firm/1"
-    ddg = ddg_site_search_url("Вишня Таганская", "Таганская улица, 3")
-    html = FakeHtml(
-        {
-            firm: HtmlFetchResult("blocked", "403", firm),
-            ddg: HtmlFetchResult("ok", "<html>no links</html>", ddg),
-        }
-    )
+    pages: dict[str, HtmlFetchResult] = {
+        firm: HtmlFetchResult("blocked", "403", firm),
+    }
+    for query in ddg_site_search_queries("Вишня Таганская", "Таганская улица, 3"):
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        pages[url] = HtmlFetchResult("ok", "<html>no links</html>", url)
+    for probe in (
+        "https://vishnyasalon.ru",
+        "https://vishnya-salon.ru",
+        "https://salon-vishnya.ru",
+        "https://vishnya.ru",
+    ):
+        pages[probe] = HtmlFetchResult("empty", "", probe)
+    html = FakeHtml(pages)
     twogis = MapCard(
         rating=3.6,
         review_count=22,
@@ -365,6 +374,41 @@ def test_blocked_twogis_stays_missing_without_ddg_hit() -> None:
     place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.site_about.trust is Trust.MISSING
     assert place.site_about.value is None
+
+
+def test_blocked_twogis_finds_site_via_domain_probe() -> None:
+    firm = "https://2gis.ru/firm/1"
+    site = "https://vishnyasalon.ru"
+    pages: dict[str, HtmlFetchResult] = {
+        firm: HtmlFetchResult("blocked", "403", firm),
+        site: HtmlFetchResult(
+            "ok",
+            "<html><p>Таганская улица, 3</p><h2>О нас</h2><p>Студия на Таганке.</p></html>",
+            site,
+        ),
+    }
+    for query in ddg_site_search_queries("Вишня Таганская", "Таганская улица, 3"):
+        url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        pages[url] = HtmlFetchResult("empty", "", url)
+    html = FakeHtml(pages)
+    twogis = MapCard(
+        rating=3.6,
+        review_count=22,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert place.site_about.trust is Trust.FOUND
+    assert place.site_about.source_url == site
 
 
 def test_ogrn_hook_loads_site_from_rbc_card() -> None:

@@ -111,6 +111,12 @@ def test_open_html_parser_reads_json_ld_about_rating_address() -> None:
     assert "Таганская" in extract.address
 
 
+def test_open_html_parser_reads_og_description() -> None:
+    html = '<meta property="og:description" content="I LIKE NAILS студия" />'
+    extract = OpenHtmlParser().parse(html)
+    assert extract.about == "I LIKE NAILS студия"
+
+
 def test_open_html_parser_about_from_heading() -> None:
     extract = OpenHtmlParser().parse(HTML_ABOUT)
     assert extract.about is not None

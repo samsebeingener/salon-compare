@@ -34,6 +34,15 @@ _META_CONTENT_THEN_NAME = re.compile(
     r"<meta\b[^>]*\bcontent=['\"]([^'\"]*)['\"][^>]*\bname=['\"]description['\"]",
     re.IGNORECASE,
 )
+_OG_DESCRIPTION = re.compile(
+    r"<meta\b[^>]*\bproperty=['\"]og:description['\"][^>]*\bcontent=['\"]([^'\"]*)['\"]",
+    re.IGNORECASE,
+)
+_OG_DESCRIPTION_ALT = re.compile(
+    r"<meta\b[^>]*\bcontent=['\"]([^'\"]*)['\"][^>]*\bproperty=['\"]og:description['\"]",
+    re.IGNORECASE,
+)
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
 _WEBSITE_TYPED = re.compile(
     r'"type"\s*:\s*"website"[^}]{0,500}?"(?:url|value)"\s*:\s*"([^"]+)"',
@@ -186,9 +195,21 @@ def _clip(text: str, limit: int = 280) -> str:
 def _meta_description(html: str) -> str | None:
     match = _META_NAME_THEN_CONTENT.search(html) or _META_CONTENT_THEN_NAME.search(html)
     if match is None:
+        match = _OG_DESCRIPTION.search(html) or _OG_DESCRIPTION_ALT.search(html)
+    if match is None:
         return None
-    text = match.group(1).strip()
+    text = _TAGS.sub("", match.group(1)).strip()
     return _clip(text) if text else None
+
+
+def _title_text(html: str) -> str | None:
+    match = _TITLE.search(html)
+    if match is None:
+        return None
+    text = _TAGS.sub("", match.group(1)).strip()
+    if not text or text.casefold() in {"главная", "home"}:
+        return None
+    return _clip(text)
 
 
 def _about_from_heading(html: str) -> str | None:
@@ -267,6 +288,8 @@ def parse_open_html(html: str) -> HtmlExtract:
         about = _meta_description(text)
     if about is None:
         about = _about_from_heading(text)
+    if about is None:
+        about = _title_text(text)
     return HtmlExtract(
         rating=ld.rating,
         review_count=ld.review_count,

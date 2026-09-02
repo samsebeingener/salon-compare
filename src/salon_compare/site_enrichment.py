@@ -47,13 +47,79 @@ _RBC_WEBSITE = re.compile(
 
 MAX_SITE_PAGES = 10
 _MAX_INTERNAL_PER_PAGE = 6
+_SALON_WORDS = frozenset(
+    {
+        "салон",
+        "студия",
+        "маникюр",
+        "маникюрный",
+        "ногтевая",
+        "ногтевой",
+        "красоты",
+        "beauty",
+        "nails",
+        "nail",
+    }
+)
+_TRANSLIT = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "e",
+    "ж": "zh",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "h",
+    "ц": "ts",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "sch",
+    "ъ": "",
+    "ы": "y",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+}
+
+
+def ddg_site_search_queries(title: str, address: str | None = None) -> list[str]:
+    base = title.strip()
+    queries = [base]
+    if "маникюр" not in base.casefold():
+        queries.append(f"{base} маникюр")
+    if address:
+        street = address.split(",")[0].strip()
+        if street and street.casefold() not in base.casefold():
+            queries.append(f"{base} {street}")
+    seen: set[str] = set()
+    out: list[str] = []
+    for query in queries:
+        key = query.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(query)
+    return out
 
 
 def ddg_site_search_url(title: str, address: str | None = None) -> str:
-    parts = [title.strip()]
-    if address and address.strip():
-        parts.append(address.strip())
-    query = " ".join(parts)
+    query = ddg_site_search_queries(title, address)[0]
     return f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
 
 
@@ -129,3 +195,69 @@ def rbc_website(html: str) -> str | None:
         return None
     url = match.group(1).strip().rstrip("/")
     return url if url.startswith("http") else None
+
+
+def _translit_word(word: str) -> str:
+    out: list[str] = []
+    for char in word.casefold():
+        if char in _TRANSLIT:
+            out.append(_TRANSLIT[char])
+        elif char.isalnum():
+            out.append(char)
+    return "".join(out)
+
+
+_LOCATION_SUFFIXES = ("ская", "ский", "ная", "ный", "ской", "ское")
+
+
+def _looks_like_location(word: str) -> bool:
+    lowered = word.casefold()
+    return any(lowered.endswith(suffix) for suffix in _LOCATION_SUFFIXES)
+
+
+def brand_slug(title: str) -> str | None:
+    head = title.split(",", 1)[0].strip()
+    words = [item for item in re.split(r"[\s\-–—]+", head) if item]
+    picked: list[str] = []
+    for word in words:
+        lowered = word.casefold().strip(".")
+        if lowered in _SALON_WORDS or len(lowered) < 2:
+            continue
+        if picked and _looks_like_location(lowered):
+            break
+        picked.append(lowered)
+        break
+    if not picked:
+        return None
+    slug = "".join(_translit_word(word) for word in picked)
+    return slug if len(slug) >= 3 else None
+
+
+def domain_probe_urls(title: str) -> list[str]:
+    slug = brand_slug(title)
+    if slug is None:
+        return []
+    hosts = [
+        f"{slug}salon.ru",
+        f"{slug}-salon.ru",
+        f"salon-{slug}.ru",
+        f"{slug}.ru",
+    ]
+    seen: set[str] = set()
+    urls: list[str] = []
+    for host in hosts:
+        if host in seen:
+            continue
+        seen.add(host)
+        urls.append(f"https://{host}")
+    return urls
+
+
+def page_matches_address(html: str, address: str | None) -> bool:
+    if not address or not address.strip():
+        return True
+    street = address.split(",")[0].strip()
+    token = street.split()[0] if street else street
+    if len(token) < 4:
+        return True
+    return token.casefold() in html.casefold()

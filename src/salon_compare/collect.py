@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 from typing import Protocol
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,9 +32,11 @@ from salon_compare.legal import (
 )
 from salon_compare.site_enrichment import (
     MAX_SITE_PAGES,
-    ddg_site_search_url,
+    ddg_site_search_queries,
     ddg_site_urls,
+    domain_probe_urls,
     internal_legal_links,
+    page_matches_address,
     rbc_company_card_url,
     rbc_website,
 )
@@ -266,7 +268,7 @@ def _website_from_rbc(
     return rbc_website(card.body)
 
 
-def _ddg_discover_sites(
+def _discover_site_urls(
     title: str,
     address: str | None,
     html: HtmlFetcher,
@@ -274,11 +276,21 @@ def _ddg_discover_sites(
 ) -> list[str]:
     if not title.strip():
         return []
-    search_url = ddg_site_search_url(title, address)
-    page = _paced_get(html, search_url, pacer)
-    if page.status != "ok":
-        return []
-    return ddg_site_urls(page.body)
+    for query in ddg_site_search_queries(title, address):
+        search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
+        page = _paced_get(html, search_url, pacer)
+        if page.status != "ok":
+            continue
+        urls = ddg_site_urls(page.body)
+        if urls:
+            return urls
+    for url in domain_probe_urls(title):
+        page = html.get(url)
+        if page.status != "ok":
+            continue
+        if page_matches_address(page.body, address):
+            return [url]
+    return []
 
 
 def _collect_site(
@@ -313,7 +325,7 @@ def _collect_site(
             blocked = page.status == "blocked"
         if blocked or not twogis.html_url:
             addr = venue_address or twogis.address
-            queue.extend(_ddg_discover_sites(venue_title, addr, html, pacer))
+            queue.extend(_discover_site_urls(venue_title, addr, html, pacer))
     about_value: str | None = None
     about_url: str | None = None
     pages_fetched = 0

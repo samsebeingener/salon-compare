@@ -40,6 +40,8 @@ def classify_fetch(status_code: int, text: str, final_url: str = "") -> str:
         return "blocked"
     if status_code in _BLOCKED_CODES:
         return "blocked"
+    if status_code == 202:
+        return "empty"
     if status_code >= 400 or not text.strip():
         return "empty"
     lowered = _JSON_CAPTCHA_FLAG.sub("", text).lower()
@@ -60,6 +62,8 @@ def ddg_html_post(url: str) -> tuple[str, dict[str, str]] | None:
 def html_client_kwargs(url: str) -> HttpxClientKwargs:
     host = urlparse(url).netloc.lower()
     if host == "2gis.ru" or host.endswith(".2gis.ru"):
+        return {"trust_env": False}
+    if "duckduckgo.com" in host:
         return {"trust_env": False}
     return httpx_client_kwargs()
 

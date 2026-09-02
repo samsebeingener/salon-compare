@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from salon_compare.legal import labeled_inn, labeled_ogrn
 from salon_compare.site_enrichment import (
+    brand_slug,
     ddg_site_search_url,
     ddg_site_urls,
+    domain_probe_urls,
     internal_legal_links,
+    page_matches_address,
     rbc_company_card_url,
     rbc_website,
 )
@@ -59,6 +62,21 @@ def test_rbc_website_from_id_page() -> None:
 def test_labeled_inn_requires_label() -> None:
     assert labeled_inn("<p>ИНН: 7720809493</p>") == "7720809493"
     assert labeled_inn("<p>7720809493</p>") is None
+
+
+def test_brand_slug_vishnya() -> None:
+    assert brand_slug("Вишня, маникюрный салон") == "vishnya"
+    assert brand_slug("Вишня Таганская") == "vishnya"
+
+
+def test_domain_probe_urls_vishnya() -> None:
+    assert "https://vishnyasalon.ru" in domain_probe_urls("Вишня, маникюрный салон")
+
+
+def test_page_matches_address_taganskaya() -> None:
+    html = "<p>ул. Таганская, 3</p>"
+    assert page_matches_address(html, "Таганская улица, 3")
+    assert not page_matches_address("<p>Казань</p>", "Таганская улица, 3")
 
 
 def test_labeled_ogrn_still_requires_label() -> None:
