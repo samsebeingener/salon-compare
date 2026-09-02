@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тестовое задание · Сравнение маникюрных салонов Москвы под покупку</title>
+<style>
+:root{
+  --bg:#f4f1ea; --panel:#fffdf8; --ink:#191714; --muted:#6b6459; --line:#ddd6c7;
+  --grid:rgba(0,0,0,.045);
+  --accent:#4338ca;
+  --ok:#15803d; --bad:#b91c1c;
+  --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14161a;--panel:#1b1e24;--ink:#eceae5;--muted:#9aa0aa;--line:#2f343d;--grid:rgba(255,255,255,.04);--ok:#4ade80;--bad:#f87171}
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  font-size:15px;line-height:1.5;
+}
+.wrap{max-width:1360px;margin:0 auto;padding:26px clamp(14px,2.5vw,32px) 60px}
+
+/* ---------- header ---------- */
+.head{border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:#fff;background:var(--accent);padding:4px 9px;border-radius:3px;display:inline-block}
+h1{font-size:clamp(26px,3.6vw,40px);font-weight:750;letter-spacing:-.02em;line-height:1.1;margin:.42em 0 .3em}
+.sub{font-size:1.05em;color:var(--muted);max-width:62em;margin:0}
+.chips{margin-top:12px;display:flex;flex-wrap:wrap;gap:7px}
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:99px;
+  border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.tag b{color:var(--accent);font-weight:700}
+
+/* ---------- sheet grid ---------- */
+.sheet{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.block{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:6px;
+  padding:16px 18px 18px;break-inside:avoid}
+.block.wide{grid-column:1/-1}
+@media (max-width:900px){.sheet{grid-template-columns:1fr}}
+.block>h2{display:flex;align-items:baseline;gap:9px;margin:0 0 .7em;font-size:1.12em;font-weight:750;letter-spacing:-.01em}
+.block>h2 .n{font-family:var(--mono);font-size:.85em;font-weight:700;color:#fff;background:var(--accent);
+  padding:2px 7px;border-radius:3px;flex:0 0 auto}
+h3{margin:1.1em 0 .4em;font-size:.98em;font-weight:700}
+h3:first-of-type{margin-top:0}
+p{margin:0 0 .65em}
+ul,ol{margin:0 0 .7em;padding-left:1.25em}
+li{margin:.28em 0}
+b,strong{font-weight:700}
+code,.mono{font-family:var(--mono);font-size:.9em}
+code{background:rgba(67,56,202,.09);padding:.08em .32em;border-radius:3px}
+a{color:var(--accent);text-underline-offset:.15em}
+a:hover{text-decoration:none}
+@media (prefers-color-scheme:dark){code{background:rgba(255,255,255,.08)}a{color:#a5b4fc}}
+table{width:100%;border-collapse:collapse;margin:0 0 .7em}
+th,td{text-align:left;padding:.45em .55em;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:.8em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  font-weight:600;border-bottom:2px solid var(--ink)}
+tr:last-child td{border-bottom:none}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:.65em .8em;margin:0 0 .6em;
+  overflow:auto;font-family:var(--mono);font-size:.86em;line-height:1.5;white-space:pre}
+blockquote{margin:0 0 .7em;padding:.6em .9em;border-left:4px solid var(--accent);background:var(--bg);
+  border-radius:0 5px 5px 0;font-size:.97em}
+blockquote p:last-child{margin-bottom:0}
+.note{font-size:.87em;color:var(--muted);margin-top:.5em}
+.yes{color:var(--ok);font-weight:700}
+.no{color:var(--bad);font-weight:700}
+.lede{color:var(--muted)}
+.cols{display:grid;gap:12px}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:760px){.c2,.c3{grid-template-columns:1fr}}
+.mini{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:4px;padding:.6em .75em}
+.mini h4{margin:0 0 .3em;font-size:.95em;font-weight:700}
+.mini p:last-child{margin-bottom:0}
+.check{list-style:none;padding-left:0}
+.check li{padding-left:1.6em;position:relative}
+.check li::before{content:"";position:absolute;left:0;top:.28em;width:13px;height:13px;border:1.6px solid var(--muted);border-radius:3px}
+
+/* ---------- figures ---------- */
+.fig{display:block;width:100%;height:auto;margin:.2em 0 .8em;color:var(--ink);overflow:visible}
+.fig text{font-family:var(--mono);font-size:13px;fill:currentColor;dominant-baseline:middle}
+.fig .s{font-size:11px;opacity:.7}
+.fig .xs{font-size:10px;opacity:.62}
+.fig .bx{fill:var(--panel);stroke:currentColor;stroke-width:1.6}
+.fig .bxo{fill:none;stroke:var(--accent);stroke-width:2}
+.fig .lna{stroke:var(--accent);stroke-width:2.2;fill:none}
+.fig .aha{fill:var(--accent)}
+.fig .softa{fill:var(--accent);opacity:.14}
+.fig .a{fill:var(--accent)}
+
+/* ---------- print ---------- */
+@media print{
+  body{background:#fff;background-image:none;font-size:10.5pt}
+  .wrap{max-width:none;padding:0}
+  .sheet{gap:10px}
+  .block{break-inside:avoid;page-break-inside:avoid}
+  @page{margin:12mm}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="head">
+  <span class="eyebrow">Тестовое задание</span>
+  <h1>Сравнение трех салонов: какую точку покупать</h1>
+  <p class="sub">Небольшое приложение, которому передают три маникюрных салона — сайтом, названием, ОГРН или другой зацепкой, — а оно собирает по каждому открытые данные и возвращает сравнительный отчет: чем точки отличаются, какая выглядит привлекательнее как объект покупки и насколько собранным данным можно верить. Здесь — предметная рамка, требования, архитектурные ограничения, требования к CI/CD и критерии, по которым решение будет оцениваться.</p>
+  <div class="chips">
+    <span class="tag"><b>Вход:</b> три салона</span>
+    <span class="tag"><b>Выход:</b> сравнительный отчет</span>
+    <span class="tag"><b>Стек:</b> Python + SQLite</span>
+    <span class="tag"><b>Агент:</b> любой</span>
+    <span class="tag"><b>Модели:</b> любые внешние</span>
+    <span class="tag"><b>Процесс:</b> OpenSpec + TDD</span>
+    <span class="tag"><b>CI:</b> GitHub Actions</span>
+    <span class="tag"><b>Сдача:</b> репозиторий на GitHub</span>
+  </div>
+</header>
+
+<div class="sheet">
+
+<!-- 1 -->
+<section class="block wide">
+  <h2><span class="n">1</span>Задача в двух предложениях</h2>
+  <div class="cols c2">
+    <div>
+      <p>Представьте инвестора, который присматривается к нескольким действующим маникюрным салонам в Москве. По каждому у него на руках немного: ссылка на сайт, название студии, иногда ОГРН. Цены сделки на этом этапе еще нет — сначала нужно понять, что вообще за объекты перед ним и стоит ли идти дальше хоть с одним из них.</p>
+      <p>Вы делаете приложение, которому <b>отдают три салона, а оно собирает по каждому открытые данные, приводит их к единой структуре с помощью модели и возвращает сравнительный отчет</b>: точки рядом по одним и тем же признакам, оценка привлекательности каждой, что удалось подтвердить, а что осталось непроверенным, и вывод — какая точка выглядит интереснее и почему.</p>
+      <blockquote><p>Оценивается не объем кода, а инженерные решения: как устроен контракт с моделью, как вы делаете разнородные источники сопоставимыми, как отделяете подтвержденный факт от неподтвержденного, как выглядит проверка качества и как это собирается и запускается у нас без вашего участия.</p></blockquote>
+    </div>
+    <div>
+      <svg class="fig" viewBox="0 0 900 196" role="img" aria-label="Три зацепки сходятся в сбор, оценку и сравнительный отчет">
+        <rect class="bx" x="10" y="18" width="176" height="38" rx="5"/>
+        <rect class="bx" x="10" y="70" width="176" height="38" rx="5"/>
+        <rect class="bx" x="10" y="122" width="176" height="38" rx="5"/>
+        <text class="s" x="98" y="38" text-anchor="middle">салон 1 — сайт</text>
+        <text class="s" x="98" y="90" text-anchor="middle">салон 2 — ОГРН</text>
+        <text class="s" x="98" y="142" text-anchor="middle">салон 3 — название</text>
+
+        <path class="lna" d="M186 37 C214 37 214 89 240 89"/>
+        <path class="lna" d="M186 89 L232 89"/>
+        <path class="lna" d="M186 141 C214 141 214 89 240 89"/>
+        <polygon class="aha" points="248,89 240,83 240,95"/>
+
+        <rect class="bx" x="252" y="60" width="196" height="58" rx="5"/>
+        <rect class="bx" x="478" y="60" width="176" height="58" rx="5"/>
+        <rect class="bx" x="684" y="60" width="206" height="58" rx="5"/>
+
+        <text x="350" y="82" text-anchor="middle">СБОР И РАЗБОР</text>
+        <text x="566" y="82" text-anchor="middle">ОЦЕНКА</text>
+        <text x="787" y="82" text-anchor="middle">СРАВНЕНИЕ</text>
+        <text class="xs" x="350" y="104" text-anchor="middle">открытые источники, модель</text>
+        <text class="xs" x="566" y="104" text-anchor="middle">привлекательность и риски</text>
+        <text class="xs" x="787" y="104" text-anchor="middle">три точки по одним полям</text>
+
+        <path class="lna" d="M448 89 L470 89"/>
+        <polygon class="aha" points="478,89 470,83 470,95"/>
+        <path class="lna" d="M654 89 L676 89"/>
+        <polygon class="aha" points="684,89 676,83 676,95"/>
+
+        <text class="s" x="787" y="150" text-anchor="middle">вывод: какую точку</text>
+        <text class="s" x="787" y="168" text-anchor="middle">смотреть первой и почему</text>
+      </svg>
+      <p class="note">Все, что за пределами этих четырех шагов, в тестовом не требуется.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="block">
+  <h2><span class="n">2</span>Предметная рамка</h2>
+  <p>В рамках этой области вы сами выбираете, из каких источников брать данные, какие признаки салона считать значимыми и как из них складывается вывод о привлекательности точки. Это и есть основная часть работы.</p>
+
+  <h3>Рамка задания</h3>
+  <table>
+    <tr><th>Параметр</th><th>Значение</th></tr>
+    <tr><td>Объект</td><td>Действующие маникюрные и ногтевые студии, которые рассматриваются к покупке как готовый бизнес</td></tr>
+    <tr><td>География</td><td>Москва и ближайшее Подмосковье в пределах МЦД</td></tr>
+    <tr><td>Роль пользователя</td><td>Инвестор, который выбирает между несколькими точками перед сделкой</td></tr>
+    <tr><td>Вход</td><td>Три салона за один запуск — по одной зацепке на каждый</td></tr>
+    <tr><td>Главный вопрос</td><td>«Какая из трех точек привлекательнее как объект покупки и на чем этот вывод держится»</td></tr>
+    <tr><td>Чего нет на входе</td><td>Цены сделки и финансовой отчетности. Оценка строится на открытых данных о самом салоне</td></tr>
+  </table>
+
+  <h3>Что подают на вход</h3>
+  <p class="lede">По каждому салону пользователь дает то, что у него есть, — обычно что-то одно, и по разным салонам это разные вещи:</p>
+  <ul>
+    <li>ссылка на сайт студии или на страницу в соцсети;</li>
+    <li>название и, возможно, адрес или станция метро;</li>
+    <li>ОГРН или ИНН юридического лица либо ИП;</li>
+    <li>ссылка на карточку студии на картах или в сервисе записи;</li>
+    <li>произвольный текст с обрывками этих сведений.</li>
+  </ul>
+  <p>Приложение само определяет, что ему передали по каждой позиции, и достраивает остальное из открытых источников. Если зацепки не хватает, чтобы однозначно опознать объект, разумно вернуть варианты и попросить уточнить — это лучше, чем молча выбрать первый попавшийся. Три — рабочий минимум; если у вас получится обрабатывать произвольное число объектов, это плюс, но не требование.</p>
+
+  <h3>Решаете вы</h3>
+  <ul>
+    <li>какие источники использовать — реестры юрлиц, карты и отзывы, соцсети и сервисы записи, сайт самой студии;</li>
+    <li>какие признаки описывают точку и какие из них обязательны, чтобы объект вообще попал в сравнение;</li>
+    <li>что считать привлекательностью и как сравнивать точки, у которых собраны разные наборы данных;</li>
+    <li>как понять, что две зацепки ведут к одному и тому же объекту.</li>
+  </ul>
+
+  <h3>Минимальный набор признаков</h3>
+  <p class="lede">Набор можно расширять; на этих признаках строится сравнение:</p>
+  <ul>
+    <li>расположение: район или станция метро, тип места — улица, ТЦ, жилой комплекс;</li>
+    <li>масштаб: число мастеров или рабочих мест, часы работы, набор услуг и уровень цен на них;</li>
+    <li>репутация: рейтинг и отзывы на картах, динамика и свежесть отзывов;</li>
+    <li>окружение: сколько похожих студий рядом и чем они лучше или хуже;</li>
+    <li>юрлицо: возраст, статус, вид деятельности — если объект удалось связать с записью в реестре;</li>
+    <li>ссылка на первоисточник каждого значения и <b>оценка достоверности</b> — насколько собранному можно верить.</li>
+  </ul>
+
+  <blockquote><p><b>Важно:</b> открытые данные разного качества. Рейтинг с накрученными отзывами, заброшенный сайт и запись в реестре — это три разных по надежности сигнала. Различие между «подтверждено источником» и «выглядит похоже» стоит показывать явно: без него сравнение трех точек теряет смысл.</p></blockquote>
+</section>
+
+<!-- 3 -->
+<section class="block">
+  <h2><span class="n">3</span>Требования к приложению</h2>
+
+  <div class="mini" style="margin-bottom:.7em">
+    <h4>Шаг 1. Ввод трех объектов</h4>
+    <p>Пользователь вводит три зацепки в интерфейсе и запускает разбор. Приложение распознает тип каждой: ссылка, ОГРН, название, свободный текст. Автоматический запуск по расписанию не требуется.</p>
+  </div>
+  <div class="mini" style="margin-bottom:.7em">
+    <h4>Шаг 2. Сбор и извлечение</h4>
+    <p>По каждому объекту собираются открытые данные и уходят модели, которая возвращает <b>структурированный объект</b>, а не свободный текст: признаки из раздела 2, источник каждого значения и список того, что найти не удалось. Схема ответа задается явно и валидируется на входе в приложение. Три объекта обрабатываются независимо: сбой по одному не отменяет остальные.</p>
+  </div>
+  <div class="mini" style="margin-bottom:.7em">
+    <h4>Шаг 3. Оценка и хранение</h4>
+    <p>Как считать привлекательность и достоверность — на ваше усмотрение: формула в коде, модель, их сочетание. Важно другое: правила <b>одинаковы для всех трех точек</b>, а способ оценки вы можете объяснить и обосновать. Результаты запуска сохраняются целиком, чтобы отчет можно было открыть повторно без нового обращения к источникам.</p>
+  </div>
+  <div class="mini">
+    <h4>Шаг 4. Сравнительный отчет</h4>
+    <table style="margin:.5em 0 0">
+      <tr><th>Часть отчета</th><th>Что показывает</th></tr>
+      <tr><td>Таблица сравнения</td><td>Три точки в колонках, признаки в строках. Видно, где данные подтверждены, где сигнал слабый, а где их нет</td></tr>
+      <tr><td>Карточка точки</td><td>Все признаки по одному объекту, источник каждого значения, что не удалось найти</td></tr>
+      <tr><td>Вывод</td><td>Короткий текст: какая точка выглядит интереснее, чем она лучше двух других и при каком условии вывод изменится. Пишется моделью <b>по посчитанным данным</b>, а не новым поиском</td></tr>
+    </table>
+  </div>
+
+  <h3>Сквозные требования</h3>
+  <ul>
+    <li>У каждого значения в отчете есть <b>ссылка на первоисточник</b> либо явная пометка «не подтверждено» или «не найдено».</li>
+    <li>Точки сравниваются по одним и тем же признакам. Если по объекту данных не хватает, это видно в таблице, а не маскируется средним или нулем.</li>
+    <li>Модель ошибается — интерфейс это допускает: значение можно исправить вручную, объект — пометить как недостоверный, отчет после правки пересчитывается.</li>
+    <li>Расход токенов и стоимость запуска <b>видны пользователю</b>: сохраняйте их вместе с результатом.</li>
+    <li>Приложение поднимается одной командой и без ключа модели открывает ранее сохраненные отчеты.</li>
+  </ul>
+</section>
+
+<!-- 4 -->
+<section class="block">
+  <h2><span class="n">4</span>Стек</h2>
+  <p>Ограничения ниже нужны, чтобы решение можно было запустить и прочитать без вашего участия. Все остальное — раскладка модулей, схема данных, границы слоев — <b>часть задания</b>: архитектуру вы придумываете сами и защищаете на разборе.</p>
+
+  <table>
+    <tr><th>Элемент</th><th>Требование</th></tr>
+    <tr><td>Язык</td><td>Python 3.12+</td></tr>
+    <tr><td>Веб-часть</td><td>На ваш выбор: FastAPI, Litestar, Streamlit, Django. Один процесс, без отдельного фронтенд-приложения</td></tr>
+    <tr><td>Хранилище</td><td>SQLite файлом рядом с проектом. Файл базы в репозиторий не коммитится</td></tr>
+    <tr><td>Схемы данных</td><td>Pydantic или эквивалент со строгой валидацией ответа модели</td></tr>
+    <tr><td>Зависимости</td><td>Любой современный менеджер с локом: uv, poetry, pdm</td></tr>
+    <tr><td>Провайдер модели</td><td>Любой внешний, доступ по ключу из переменной окружения. Провайдер меняется конфигом, а не правкой кода</td></tr>
+    <tr><td>Спецификации</td><td><b><a href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a></b>. Каждая заметная возможность проходит через изменение в OpenSpec, закрытые изменения лежат в архиве</td></tr>
+    <tr><td>Разработка</td><td><b>TDD, test-first</b>: тест по сценарию пишется и падает раньше реализации</td></tr>
+    <tr><td>Сборка и запуск</td><td>Docker и <code>docker compose</code>, подробности — в разделе 6</td></tr>
+  </table>
+
+  <div class="mini" style="margin-bottom:.6em">
+    <h4>OpenSpec</h4>
+    <p>Требование к процессу, а не к оформлению: сначала изменение и сценарии «Дано / Когда / Тогда», потом код. По репозиторию должно читаться, что было задумано до того, как это появилось в коде.</p>
+    <p class="note" style="margin-top:.35em">Репозиторий и документация: <a href="https://github.com/Fission-AI/OpenSpec">github.com/Fission-AI/OpenSpec</a>.</p>
+  </div>
+
+  <div class="mini" style="margin-bottom:.6em">
+    <h4>Test-first</h4>
+    <p>Цикл на каждую возможность: сценарий из спецификации → падающий тест → код до зеленого → чистка. Тест коммитится отдельно и раньше реализации, поэтому в истории видно, что он падал. Работайте мелкими шагами: одна возможность — одно изменение в OpenSpec — одна ветка — один pull request с прошедшими проверками, даже если в репозитории вы один.</p>
+  </div>
+
+  <div class="mini">
+    <h4>Один процесс, один файл базы</h4>
+    <p>Меньше движущихся частей — быстрее проверяется. Ключ модели используется <b>только на сервере</b>, в браузер не попадает.</p>
+  </div>
+
+  <p class="note">В <code>README.md</code> коротко опишите: что делает приложение, как его запустить, как разложен код и какие сущности хранятся, почему выбрано именно так и что осталось за рамками. Это то, о чем мы будем спрашивать.</p>
+</section>
+
+<!-- 5 -->
+<section class="block">
+  <h2><span class="n">5</span>Агент и работа с моделью</h2>
+
+  <h3>Агент</h3>
+  <p>Писать код агентом можно — любым: Claude Code, Codex, Cursor, opencode, Aider. Сколько строк набрано руками, мы не проверяем. Проверяем другое: понимаете ли вы каждое решение в репозитории и можете ли его защитить.</p>
+  <blockquote><p>В <code>README.md</code> одним абзацем: каким агентом и какими моделями пользовались, что агент сделал сам вопреки вашему замыслу и почему вы это оставили.</p></blockquote>
+
+  <h3>Модель внутри приложения</h3>
+  <ul>
+    <li>Провайдер любой — OpenAI, Anthropic, Google, российские или локальные модели. Условие одно: <b>смена провайдера не должна требовать правки бизнес-логики</b>.</li>
+    <li>Ключи — только через переменные окружения, <code>.env</code> в <code>.gitignore</code>, в репозитории лежит <code>.env.example</code>.</li>
+    <li>Ответ модели <b>всегда валидируется по схеме</b>. Невалидный ответ — это штатная ситуация: повтор, деградация или отказ, но не падение приложения.</li>
+    <li>Считайте расход: сколько токенов и денег ушло на запуск — сохраняйте вместе с отчетом и показывайте в интерфейсе.</li>
+  </ul>
+
+  <h3>Тесты и внешние вызовы</h3>
+  <ul>
+    <li>Тесты не ходят в сеть. Ответы модели и страницы источников — зафиксированные фикстуры.</li>
+    <li>Отдельно проверьте поведение на <b>плохом ответе</b>: пустой JSON, лишние поля, число строкой, оборванный ответ.</li>
+    <li>Логика оценки покрыта тестами. Если часть оценки делает модель, тестируйте ее на зафиксированных ответах — результат работы приложения должен быть воспроизводим.</li>
+  </ul>
+</section>
+
+<!-- 6 -->
+<section class="block">
+  <h2><span class="n">6</span>CI/CD</h2>
+  <p>Площадка — <b>GitHub</b>, пайплайн — <b>GitHub Actions</b>, workflow лежит в <code>.github/workflows/</code>. Пайплайн — такой же предмет оценки, как и код: он запускается на каждый push и pull request и <b>падает</b>, если что-то не так.</p>
+
+  <svg class="fig" viewBox="0 0 900 126" role="img" aria-label="Пайплайн GitHub Actions: push, проверки качества, тесты, сборка образа, проверка запуска">
+    <rect class="bx" x="8" y="30" width="120" height="52" rx="5"/>
+    <rect class="bx" x="158" y="30" width="150" height="52" rx="5"/>
+    <rect class="bx" x="338" y="30" width="150" height="52" rx="5"/>
+    <rect class="bx" x="518" y="30" width="160" height="52" rx="5"/>
+    <rect class="bx" x="708" y="30" width="182" height="52" rx="5"/>
+
+    <text class="s" x="68" y="49" text-anchor="middle">push / PR</text>
+    <text class="xs" x="68" y="68" text-anchor="middle">GitHub Actions</text>
+    <text class="s" x="233" y="49" text-anchor="middle">качество</text>
+    <text class="xs" x="233" y="68" text-anchor="middle">линтер, формат, типы</text>
+    <text class="s" x="413" y="49" text-anchor="middle">тесты</text>
+    <text class="xs" x="413" y="68" text-anchor="middle">pytest + покрытие</text>
+    <text class="s" x="598" y="49" text-anchor="middle">сборка образа</text>
+    <text class="xs" x="598" y="68" text-anchor="middle">с версией и тегом</text>
+    <text class="s" x="799" y="49" text-anchor="middle">проверка запуска</text>
+    <text class="xs" x="799" y="68" text-anchor="middle">контейнер поднялся и отвечает</text>
+
+    <path class="lna" d="M128 56 L150 56"/><polygon class="aha" points="158,56 150,50 150,62"/>
+    <path class="lna" d="M308 56 L330 56"/><polygon class="aha" points="338,56 330,50 330,62"/>
+    <path class="lna" d="M488 56 L510 56"/><polygon class="aha" points="518,56 510,50 510,62"/>
+    <path class="lna" d="M678 56 L700 56"/><polygon class="aha" points="708,56 700,50 700,62"/>
+  </svg>
+
+  <h3>Требования</h3>
+  <ul>
+    <li><b>Проверка качества</b> в пайплайне: линтер, типы, тесты. Набор инструментов и пороги — на ваше усмотрение, но проверки должны запускаться <b>одной командой локально</b> — той же, что в CI.</li>
+    <li><b>Сборка docker-образа</b> в пайплайне, с версионированием: по образу понятно, из какого коммита он собран.</li>
+    <li>Секреты — через <code>secrets</code> репозитория; тесты в CI в сеть не ходят.</li>
+    <li>На ветке по умолчанию пайплайн зеленый.</li>
+  </ul>
+  <p class="note">Как именно это устроено внутри — ваше решение. Мы смотрим на результат: проверки ловят проблемы, образ собирается и запускается.</p>
+
+  <blockquote><p><b>Критерий приемки:</b> мы клонируем репозиторий с GitHub, выполняем <code>docker compose up</code> и открываем приложение в браузере. Никаких дополнительных шагов, кроме заполнения <code>.env</code> по образцу.</p></blockquote>
+</section>
+
+<!-- 7 -->
+<section class="block">
+  <h2><span class="n">7</span>Границы: чего в задании не делаем</h2>
+  <div class="mini" style="margin-bottom:.6em"><h4><span class="no">Не</span> собираем закрытое</h4><p>Только открытые источники и то, что разрешено их правилами. Ни персональных данных владельцев и сотрудников, ни обхода защиты сайтов.</p></div>
+  <div class="mini" style="margin-bottom:.6em"><h4><span class="no">Не</span> выдаем оценку за инвестиционный совет</h4><p>Оценка привлекательности — вспомогательный ориентир. В интерфейсе видна ссылка на первоисточник, а вывод помечен как сгенерированный моделью.</p></div>
+  <div class="mini" style="margin-bottom:.6em"><h4><span class="no">Не</span> строим платформу</h4><p>Ни очередей, ни микросервисов, ни авторизации, ни личных кабинетов. Одно приложение, один файл базы.</p></div>
+  <div class="mini" style="margin-bottom:.6em"><h4><span class="no">Не</span> храним ключ в репозитории</h4><p>Только переменная окружения. Ключ не выводится на экран, не пишется в логи и не попадает в историю коммитов и слои образа.</p></div>
+  <div class="mini"><h4><span class="no">Не</span> стремимся к объему</h4><p>Три точки, разобранные аккуратно и с честной оценкой достоверности, ценнее массового сбора с мусором в полях.</p></div>
+</section>
+
+<!-- 8 -->
+<section class="block">
+  <h2><span class="n">8</span>Что оценивается на приемке</h2>
+  <h3>Приложение</h3>
+  <ul class="check">
+    <li>Поднимается через <code>docker compose up</code> и работает на заданной области.</li>
+    <li>Принимает три разнотипные зацепки за один запуск и распознает, что ему передали.</li>
+    <li>Возвращает сравнительный отчет: таблица по одним и тем же полям, карточка каждой точки, вывод.</li>
+    <li>У каждого значения виден источник либо пометка «не подтверждено» или «не найдено».</li>
+    <li>Привлекательность и достоверность оцениваются по одинаковым правилам для всех трех точек, и способ оценки объясним.</li>
+    <li>Виден расход токенов и стоимость запуска.</li>
+    <li>Плохой ответ модели, недоступный источник или неопознанный объект не роняют приложение и не отменяют разбор остальных двух.</li>
+  </ul>
+  <h3>Инженерная часть</h3>
+  <ul class="check">
+    <li>Проверки — линтер, типы, тесты — проходят одной командой и локально, и в CI.</li>
+    <li>Workflow GitHub Actions собирает docker-образ с версией и проверяет, что контейнер поднимается.</li>
+    <li>Схема ответа модели задана явно и валидируется; логика оценки покрыта тестами.</li>
+    <li>Архитектура читается без объяснений: понятно, где сбор, где домен, где хранилище, и почему код разложен именно так.</li>
+    <li>Смена провайдера модели — это правка конфига, а не кода.</li>
+    <li>Каждая заметная возможность прошла через изменение в OpenSpec, закрытые изменения в архиве.</li>
+    <li>История коммитов читается: мелкие шаги, тест падал раньше реализации.</li>
+  </ul>
+  <h3>Защита решений — 30 минут разговора</h3>
+  <ul class="check">
+    <li>Объясняете обычными словами путь от трех строк на входе до готового отчета.</li>
+    <li>Называете три места, где приложение сломается, и что при этом произойдет.</li>
+    <li>Обосновываете подход к оценке привлекательности и то, как сравниваются точки с разной полнотой данных.</li>
+    <li>Говорите, что агент решил сам, чего вы не просили, и почему вы это оставили.</li>
+  </ul>
+</section>
+
+</div>
+</div>
+</body>
+</html>
