@@ -16,12 +16,8 @@ _TIMEOUT = 30.0
 class LlmUsage(BaseModel):
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
-
-    @property
-    def total_tokens(self) -> int | None:
-        if self.prompt_tokens is None and self.completion_tokens is None:
-            return None
-        return (self.prompt_tokens or 0) + (self.completion_tokens or 0)
+    total_tokens: int | None = None
+    cost: float | None = None
 
 
 class LlmClient(Protocol):
@@ -30,17 +26,43 @@ class LlmClient(Protocol):
     def last_usage(self) -> LlmUsage: ...
 
 
+def _as_int(raw: object) -> int | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float) and raw.is_integer():
+        return int(raw)
+    return None
+
+
+def _as_float(raw: object) -> float | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int | float):
+        return float(raw)
+    return None
+
+
 def usage_from_response(payload: object) -> LlmUsage:
     if not isinstance(payload, dict):
         return LlmUsage()
     raw = payload.get("usage")
     if not isinstance(raw, dict):
         return LlmUsage()
-    prompt = raw.get("prompt_tokens")
-    completion = raw.get("completion_tokens")
+    prompt = _as_int(raw.get("prompt_tokens"))
+    completion = _as_int(raw.get("completion_tokens"))
+    total = _as_int(raw.get("total_tokens"))
+    if total is None and (prompt is not None or completion is not None):
+        total = (prompt or 0) + (completion or 0)
+    cost = _as_float(raw.get("cost"))
+    if cost is None:
+        cost = _as_float(raw.get("total_cost"))
     return LlmUsage(
-        prompt_tokens=prompt if isinstance(prompt, int) else None,
-        completion_tokens=completion if isinstance(completion, int) else None,
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        total_tokens=total,
+        cost=cost,
     )
 
 
@@ -59,6 +81,8 @@ def estimate_usd(
     prompt_rate: float | None = None,
     completion_rate: float | None = None,
 ) -> float | None:
+    if usage.cost is not None:
+        return usage.cost
     in_rate = (
         prompt_rate if prompt_rate is not None else _env_rate("LLM_USD_PER_1M_PROMPT")
     )

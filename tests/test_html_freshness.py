@@ -1,11 +1,13 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.llm import LlmUsage, estimate_usd, usage_from_response
 from salon_compare.score import score_place
-from salon_compare.store import load_run, load_run_usage, save_run
+from salon_compare.store import load_run, load_run_usage, save_run, save_run_usage
 
 ROOT = Path(__file__).resolve().parents[1]
 AS_OF = date(2026, 9, 2)
@@ -109,10 +111,71 @@ def test_usage_tokens_without_rate_have_no_usd() -> None:
     assert estimate_usd(usage) is None
 
 
+def test_openrouter_usage_includes_cost_and_total() -> None:
+    usage = usage_from_response(
+        {
+            "usage": {
+                "prompt_tokens": 194,
+                "completion_tokens": 2,
+                "total_tokens": 196,
+                "cost": 0.95,
+            }
+        }
+    )
+    assert usage.total_tokens == 196
+    assert usage.cost == 0.95
+    assert estimate_usd(usage) == 0.95
+
+
+def test_usage_cost_accepts_float_token_counts() -> None:
+    usage = usage_from_response(
+        {"usage": {"prompt_tokens": 10.0, "completion_tokens": 5.0, "cost": 0.0015}}
+    )
+    assert usage.prompt_tokens == 10
+    assert usage.completion_tokens == 5
+    assert estimate_usd(usage) == 0.0015
+
+
 def test_usage_with_rates_is_linear() -> None:
     usage = LlmUsage(prompt_tokens=1_000_000, completion_tokens=1_000_000)
     usd = estimate_usd(usage, prompt_rate=1.0, completion_rate=2.0)
     assert usd == 3.0
+
+
+def test_openrouter_cost_beats_env_rates(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_USD_PER_1M_PROMPT", "999")
+    monkeypatch.setenv("LLM_USD_PER_1M_COMPLETION", "999")
+    usage = usage_from_response(
+        {
+            "usage": {
+                "prompt_tokens": 194,
+                "completion_tokens": 2,
+                "total_tokens": 196,
+                "cost": 0.95,
+            }
+        }
+    )
+    assert estimate_usd(usage) == 0.95
+
+
+def test_sqlite_keeps_openrouter_cost(tmp_path: Path) -> None:
+    path = tmp_path / "usage.sqlite"
+    run_id = save_run([_place()], path)
+    save_run_usage(
+        run_id,
+        LlmUsage(
+            prompt_tokens=194,
+            completion_tokens=2,
+            total_tokens=196,
+            cost=0.95,
+        ),
+        path,
+    )
+    loaded = load_run_usage(run_id, path)
+    assert loaded is not None
+    assert loaded.total_tokens == 196
+    assert loaded.cost == 0.95
+    assert estimate_usd(loaded) == 0.95
 
 
 def test_old_sqlite_list_payload_still_loads(tmp_path: Path) -> None:

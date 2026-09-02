@@ -298,15 +298,31 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
 def _show_usage() -> None:
     st.subheader("Расход")
     usage = st.session_state.get("llm_usage")
-    if not isinstance(usage, LlmUsage) or usage.total_tokens is None:
+    if not isinstance(usage, LlmUsage):
         st.write("токены не найдены")
         return
-    st.write(f"Токены: {usage.total_tokens}")
-    usd = estimate_usd(usage)
-    if usd is None:
-        st.write("стоимость не найдена")
+    if usage.total_tokens is None:
+        st.write("токены не найдены")
     else:
-        st.write(f"Оценка: ${usd}")
+        st.write(f"Токены: {usage.total_tokens}")
+        if usage.prompt_tokens is not None or usage.completion_tokens is not None:
+            prompt = (
+                usage.prompt_tokens if usage.prompt_tokens is not None else "не найдено"
+            )
+            completion = (
+                usage.completion_tokens
+                if usage.completion_tokens is not None
+                else "не найдено"
+            )
+            st.write(f"Ввод / выход: {prompt} / {completion}")
+    if usage.cost is not None:
+        st.write(f"Стоимость (из ответа модели): ${usage.cost}")
+    else:
+        usd = estimate_usd(usage)
+        if usd is None:
+            st.write("стоимость не найдена")
+        else:
+            st.write(f"Стоимость (оценка по тарифу): ${usd}")
 
 
 def _show_report(rows: list[PlaceRecord]) -> None:

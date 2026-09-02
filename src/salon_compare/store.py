@@ -141,7 +141,8 @@ def load_run_usage(run_id: int, path: Path | None = None) -> LlmUsage | None:
     except (ValueError, TypeError):
         return None
     if parsed.prompt_tokens is None and parsed.completion_tokens is None:
-        return None
+        if parsed.total_tokens is None and parsed.cost is None:
+            return None
     return parsed
 
 
