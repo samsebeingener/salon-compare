@@ -1,4 +1,4 @@
-"""Разбор JSON карточек 2ГИС и Яндекс без сети."""
+"""Разбор JSON карточек 2ГИС без сети."""
 
 from __future__ import annotations
 
@@ -41,43 +41,6 @@ def candidates_from_twogis_items(
             )
         )
     return found
-
-
-def candidates_from_yandex_features(
-    features: list[dict[str, object]],
-) -> list[VenueCandidate]:
-    found: list[VenueCandidate] = []
-    for feature in features:
-        card = card_from_yandex(feature)
-        ident = _yandex_id(feature)
-        if not ident:
-            continue
-        title = ident
-        props = feature.get("properties")
-        if isinstance(props, dict):
-            meta = props.get("CompanyMetaData")
-            if isinstance(meta, dict):
-                raw_name = meta.get("name")
-                if isinstance(raw_name, str) and raw_name:
-                    title = raw_name
-        url = card.source_url or card.html_url or f"https://yandex.ru/maps/org/{ident}"
-        found.append(
-            VenueCandidate(f"yandex:{ident}", title, url, "yandex", card.address)
-        )
-    return found
-
-
-def _yandex_id(feature: dict[str, object]) -> str:
-    props = feature.get("properties")
-    if not isinstance(props, dict):
-        return ""
-    meta = props.get("CompanyMetaData")
-    if isinstance(meta, dict):
-        ident = meta.get("id")
-        if isinstance(ident, str) and ident:
-            return ident
-    ident = props.get("id") or props.get("companyId")
-    return ident if isinstance(ident, str) else ""
 
 
 def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
@@ -339,54 +302,4 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
         website=_contact_website(item),
         district=district_from_adm(item.get("adm_div")),
         metro=metro_from_links(item.get("links")),
-    )
-
-
-def card_from_yandex(feature: dict[str, object]) -> MapCard:
-    props = feature.get("properties")
-    meta: dict[str, object] = {}
-    if isinstance(props, dict):
-        raw_meta = props.get("CompanyMetaData")
-        if isinstance(raw_meta, dict):
-            meta = raw_meta
-    raw_address = meta.get("address")
-    address = raw_address if isinstance(raw_address, str) else None
-    ratings = meta.get("Ratings")
-    rating: float | None = None
-    if isinstance(ratings, dict):
-        raw_rating = ratings.get("value") or ratings.get("Rating")
-        if isinstance(raw_rating, int | float):
-            rating = float(raw_rating)
-    reviews = meta.get("Reviews")
-    count: int | None = None
-    if isinstance(reviews, dict):
-        raw_count = reviews.get("Count") or reviews.get("count")
-        if isinstance(raw_count, int):
-            count = raw_count
-    ident = meta.get("id")
-    url = meta.get("url")
-    html_url = ""
-    if isinstance(ident, str):
-        html_url = f"https://yandex.ru/maps/org/{ident}"
-    website = _http_url(url)
-    source = html_url or (website or "")
-    hours_block = meta.get("Hours")
-    hours: str | None = None
-    if isinstance(hours_block, dict):
-        raw_hours = hours_block.get("text")
-        if isinstance(raw_hours, str) and raw_hours.strip():
-            hours = raw_hours.strip()
-    ogrn, inn = _org_ids(meta)
-    return MapCard(
-        rating,
-        count,
-        address,
-        source,
-        html_url or source,
-        None,
-        None,
-        ogrn,
-        inn,
-        hours=hours,
-        website=website,
     )

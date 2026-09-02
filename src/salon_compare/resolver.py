@@ -44,11 +44,9 @@ class MapsSearchResolver:
     def __init__(
         self,
         twogis: PlaceCatalog,
-        yandex: PlaceCatalog,
         brands: BrandNameLookup | None = None,
     ) -> None:
         self._twogis = twogis
-        self._yandex = yandex
         self._brands = brands or NullBrandNames()
 
     def resolve(self, hook: ClassifiedHook) -> list[VenueCandidate]:
@@ -56,14 +54,12 @@ class MapsSearchResolver:
             found = candidate_from_maps_url(hook)
             return [found] if found is not None else []
         query = search_query(hook)
-        merged = _unique([*self._twogis.search(query), *self._yandex.search(query)])
+        merged = _unique(self._twogis.search(query))
         if merged:
             return merged
         if hook.kind is HookKind.OGRN:
             for name in self._brands.names_for_ogrn(hook.normalized):
-                extra = _unique(
-                    [*self._twogis.search(name), *self._yandex.search(name)]
-                )
+                extra = _unique(self._twogis.search(name))
                 if extra:
                     return extra
         fallback = _fallback_without_maps(hook)

@@ -15,16 +15,11 @@ MODEL_DISCLAIMER = "текст модели, не инвестиционный �
 HUMAN_SOURCE = "правка человека"
 
 FIELD_LABELS: tuple[tuple[str, str], ...] = (
-    ("yandex_rating", "Яндекс рейтинг"),
-    ("yandex_review_count", "Яндекс отзывы"),
     ("twogis_rating", "2ГИС рейтинг"),
     ("twogis_review_count", "2ГИС отзывы"),
     ("hours", "Часы"),
     ("district", "Район"),
     ("metro", "Метро"),
-    ("yandex_last_review", "Яндекс последний отзыв"),
-    ("yandex_reviews_90d", "Яндекс отзывы за 90 дней"),
-    ("yandex_plus_minus", "Яндекс плюс/минус"),
     ("twogis_last_review", "2ГИС последний отзыв"),
     ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
     ("twogis_plus_minus", "2ГИС плюс/минус"),
@@ -42,8 +37,6 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
 EDITABLE_FIELDS: tuple[str, ...] = tuple(name for name, _ in FIELD_LABELS)
 
 _NUMERIC_FIELDS = {
-    "yandex_rating",
-    "yandex_review_count",
     "twogis_rating",
     "twogis_review_count",
     "neighbor_count",

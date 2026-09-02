@@ -112,7 +112,6 @@ def _legal_extract() -> LegalExtract:
 
 def _deps(
     html: FakeHtml,
-    yandex: MapCard | None = None,
     twogis: MapCard | None = None,
     legal: FakeLegalParser | None = None,
 ) -> CollectDeps:
@@ -120,7 +119,6 @@ def _deps(
         _legal_extract(), "не обнаружено", "не обнаружено"
     )
     return CollectDeps(
-        yandex=FakeMapApi(yandex),
         twogis=FakeMapApi(twogis),
         html=html,
         parser=FakeMapsParser(),
@@ -130,7 +128,7 @@ def _deps(
 
 def test_ogrn_hook_is_single_org_without_search() -> None:
     hook = classify_hook(OGRN)
-    found = resolve_legal_orgs(hook, _card(), _card(), [])
+    found = resolve_legal_orgs(hook, _card(), [])
     assert len(found) == 1
     assert found[0].ogrn == OGRN
     assert found[0].source_url == egrul_url(OGRN)
@@ -175,22 +173,17 @@ def test_no_ogrn_does_not_claim_no_debts() -> None:
         assert field.value not in {"долгов нет", "чисто", 0, "0"}
 
 
-def test_two_map_ogrns_ask_confirmation_not_missing() -> None:
+def test_twogis_ogrn_collects_that_org() -> None:
     html = FakeHtml({})
-    yandex = _card(ogrn="1111111111111", url="https://yandex.example/org/a")
     twogis = _card(ogrn="2222222222222", url="https://2gis.example/firm/b")
     place = collect_place(
         _venue(),
         classify_hook("Вишня Таганская"),
-        _deps(html, yandex=yandex, twogis=twogis),
+        _deps(html, twogis=twogis),
     )
-    links = {item.source_url for item in place.legal_candidates}
-    ogrns = {item.ogrn for item in place.legal_candidates}
-    assert ogrns == {"1111111111111", "2222222222222"}
-    assert "https://yandex.example/org/a" in links
-    assert "https://2gis.example/firm/b" in links
+    assert place.legal_candidates == ()
+    assert egrul_url("2222222222222") in html.calls
     assert place.egrul_status.trust is Trust.MISSING
-    assert html.calls == []
 
 
 def test_confirm_ogrn_collects_that_org() -> None:
@@ -207,7 +200,6 @@ def test_confirm_ogrn_collects_that_org() -> None:
             ),
         }
     )
-    yandex = _card(ogrn="1111111111111", url="https://yandex.example/org/a")
     twogis = _card(ogrn="2222222222222", url="https://2gis.example/firm/b")
     extract = LegalExtract(
         registered_at="2018-01-01",
@@ -217,7 +209,6 @@ def test_confirm_ogrn_collects_that_org() -> None:
     )
     deps = _deps(
         html,
-        yandex=yandex,
         twogis=twogis,
         legal=FakeLegalParser(extract, "не обнаружено", "есть дела"),
     )

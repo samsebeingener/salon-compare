@@ -83,7 +83,6 @@ def test_kad_shell_without_ogrn_is_missing_not_has_cases() -> None:
         }
     )
     deps = CollectDeps(
-        yandex=FakeMapApi(None),
         twogis=FakeMapApi(None),
         html=html,
         parser=FakeMapsParser(),
@@ -108,8 +107,7 @@ def test_inn_on_card_does_not_hit_fedresurs() -> None:
         inn=INN,
     )
     deps = CollectDeps(
-        yandex=FakeMapApi(card),
-        twogis=FakeMapApi(None),
+        twogis=FakeMapApi(card),
         html=html,
         parser=FakeMapsParser(),
         legal=FakeLegalParser(),

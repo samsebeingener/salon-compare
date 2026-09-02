@@ -104,7 +104,6 @@ def _deps(
     legal: FakeLegalParser | MarkerLegalParser | None = None,
 ) -> CollectDeps:
     return CollectDeps(
-        yandex=FakeMapApi(),
         twogis=FakeMapApi(),
         html=html,
         parser=FakeMapsParser(),

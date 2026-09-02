@@ -21,9 +21,7 @@ def test_compose_has_no_yandex_key() -> None:
 
 
 def test_maps_http_has_no_yandex_places() -> None:
-    text = (ROOT / "src" / "salon_compare" / "maps_http.py").read_text(
-        encoding="utf-8"
-    )
+    text = (ROOT / "src" / "salon_compare" / "maps_http.py").read_text(encoding="utf-8")
     assert "YandexPlacesApi" not in text
     assert "search-maps.yandex.ru" not in text
     assert "YANDEX_MAPS_API_KEY" not in text

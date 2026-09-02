@@ -64,7 +64,7 @@ def test_two_map_cards_ask_confirm_not_ready() -> None:
     )
     outcome = resolve_intake(
         [PINK, VISHNYA, OGRN],
-        MapsSearchResolver(catalog, FakeCatalog({})),
+        MapsSearchResolver(catalog),
     )
     assert outcome.status is IntakeStatus.NEED_DISAMBIGUATION
     assert outcome.chosen_venues is None
@@ -88,7 +88,6 @@ def test_confirming_one_card_makes_ready() -> None:
                     search_query(classify_hook(OGRN)): [two],
                 }
             ),
-            FakeCatalog({}),
         ),
     )
     confirmed = apply_slot_choices(outcome, {1: "twogis:b"})
@@ -100,7 +99,7 @@ def test_confirming_one_card_makes_ready() -> None:
 def test_empty_maps_demo_trio_is_ready() -> None:
     outcome = resolve_intake(
         [PINK, VISHNYA, OGRN],
-        MapsSearchResolver(FakeCatalog({}), FakeCatalog({})),
+        MapsSearchResolver(FakeCatalog({})),
     )
     assert outcome.status is IntakeStatus.READY
     assert outcome.chosen_venues is not None
@@ -114,7 +113,7 @@ def test_empty_maps_demo_trio_is_ready() -> None:
 def test_empty_maps_inn_and_free_text_get_fallback() -> None:
     inn = "7707083893"
     blob = "длинная свободная фраза про маникюр на таганке и запись"
-    resolver = MapsSearchResolver(FakeCatalog({}), FakeCatalog({}))
+    resolver = MapsSearchResolver(FakeCatalog({}))
     inn_hits = resolver.resolve(classify_hook(inn))
     text_hits = resolver.resolve(classify_hook(blob))
     assert len(inn_hits) == 1
@@ -131,7 +130,6 @@ def test_ogrn_digits_miss_searches_maps_by_rbc_brand() -> None:
         [PINK, VISHNYA, OGRN],
         MapsSearchResolver(
             catalog,
-            FakeCatalog({}),
             FakeBrandNames({OGRN: ["I LIKE NAILS"]}),
         ),
     )
@@ -151,7 +149,6 @@ def test_ogrn_digits_miss_one_brand_hit_is_that_card() -> None:
     catalog = FakeCatalog({"I LIKE NAILS": [hit]})
     found = MapsSearchResolver(
         catalog,
-        FakeCatalog({}),
         FakeBrandNames({OGRN: ["I LIKE NAILS"]}),
     ).resolve(classify_hook(OGRN))
     assert [item.venue_id for item in found] == ["twogis:o"]
@@ -173,7 +170,7 @@ def test_readme_demo_works_without_map_keys() -> None:
 def test_maps_link_is_single_candidate_without_search() -> None:
     catalog = FakeCatalog({})
     hook = classify_hook("https://2gis.ru/moscow/firm/12345")
-    resolver = MapsSearchResolver(catalog, FakeCatalog({}))
+    resolver = MapsSearchResolver(catalog)
     found = resolver.resolve(hook)
     assert len(found) == 1
     assert found[0].venue_id == "twogis:12345"

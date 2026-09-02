@@ -138,7 +138,6 @@ def is_ogrn(value: str) -> bool:
 
 def resolve_legal_orgs(
     hook: ClassifiedHook,
-    yandex: LegalIdCard,
     twogis: LegalIdCard,
     inn_hits: Sequence[LegalOrg],
 ) -> list[LegalOrg]:
@@ -146,14 +145,11 @@ def resolve_legal_orgs(
         return [LegalOrg(hook.normalized, hook.raw.strip(), egrul_url(hook.normalized))]
     if hook.kind is HookKind.INN:
         return list(inn_hits)
-    found: dict[str, LegalOrg] = {}
-    for card in (yandex, twogis):
-        ident = (card.ogrn or "").strip()
-        if not is_ogrn(ident):
-            continue
-        url = card.source_url or egrul_url(ident)
-        found[ident] = LegalOrg(ident, ident, url)
-    return list(found.values())
+    ident = (twogis.ogrn or "").strip()
+    if not is_ogrn(ident):
+        return []
+    url = twogis.source_url or egrul_url(ident)
+    return [LegalOrg(ident, ident, url)]
 
 
 _DATE = re.compile(r"\b(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b")

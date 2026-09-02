@@ -1,8 +1,6 @@
 from salon_compare.maps_parse import (
     candidates_from_twogis_items,
-    candidates_from_yandex_features,
     card_from_twogis,
-    card_from_yandex,
 )
 
 
@@ -42,41 +40,6 @@ def test_parse_twogis_keeps_website_from_contacts() -> None:
     assert "2gis.ru/firm/firm-1" in card.html_url
 
 
-def test_parse_yandex_website_is_not_maps_source() -> None:
-    card = card_from_yandex(
-        {
-            "properties": {
-                "CompanyMetaData": {
-                    "id": "org-1",
-                    "url": "https://studio.example",
-                    "address": "Москва",
-                }
-            }
-        }
-    )
-    assert card.website == "https://studio.example"
-    assert "yandex.ru/maps" in card.html_url
-    assert card.source_url == card.html_url
-
-
-def test_parse_yandex_optional_rating() -> None:
-    card = card_from_yandex(
-        {
-            "properties": {
-                "CompanyMetaData": {
-                    "id": "org-1",
-                    "address": "Москва",
-                    "Ratings": {"value": 4.2},
-                    "Reviews": {"Count": 15},
-                }
-            }
-        }
-    )
-    assert card.rating == 4.2
-    assert card.review_count == 15
-    assert card.address == "Москва"
-
-
 def test_twogis_search_hits_keep_distinct_addresses() -> None:
     found = candidates_from_twogis_items(
         [
@@ -95,24 +58,6 @@ def test_twogis_search_hits_keep_distinct_addresses() -> None:
     )
     assert found[0].address == "Москва, Бауманская"
     assert found[1].address == "Москва, Таганская"
-
-
-def test_yandex_search_hit_keeps_address() -> None:
-    found = candidates_from_yandex_features(
-        [
-            {
-                "properties": {
-                    "CompanyMetaData": {
-                        "id": "org-1",
-                        "name": "I like nails",
-                        "address": "Москва, Бауманская",
-                    }
-                }
-            }
-        ]
-    )
-    assert found[0].title == "I like nails"
-    assert found[0].address == "Москва, Бауманская"
 
 
 def test_twogis_search_address_appends_mall_and_floor() -> None:

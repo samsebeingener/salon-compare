@@ -40,8 +40,6 @@ def _place(**fields: object) -> PlaceRecord:
     payload: dict[str, object] = {
         "venue_id": "v1",
         "title": "Студия",
-        "yandex_rating": _gap(),
-        "yandex_review_count": _gap(),
         "twogis_rating": _gap(),
         "twogis_review_count": _gap(),
         "address": _gap(),
@@ -72,21 +70,6 @@ def test_open_html_parser_skips_invented_plus_minus() -> None:
     extract = OpenHtmlParser().parse(HTML_RATING_ONLY)
     assert extract.plus_minus is None
     assert extract.last_review is None
-
-
-def test_fresher_yandex_wins_reputation() -> None:
-    score = score_place(
-        _place(
-            yandex_rating=_found(4.9),
-            twogis_rating=_found(4.1),
-            yandex_last_review=_found("2026-08-20"),
-            twogis_last_review=_found("2026-01-01"),
-        ),
-        as_of=AS_OF,
-    )
-    rep = next(item for item in score.blocks if item.name == "reputation")
-    assert rep.points is not None
-    assert "не ясно какой свежее" not in rep.reason
 
 
 def test_high_rating_with_reviews_in_90_days_is_plus_three() -> None:

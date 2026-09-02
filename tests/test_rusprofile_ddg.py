@@ -85,7 +85,6 @@ def _venue(venue_id: str = "p1") -> VenueCandidate:
 
 def _deps(html: FakeHtml, pacer: RecordingPacer | None = None) -> CollectDeps:
     return CollectDeps(
-        yandex=FakeMapApi(),
         twogis=FakeMapApi(),
         html=html,
         parser=FakeMapsParser(),
@@ -225,7 +224,6 @@ def test_rusprofile_html_does_not_copy_founder_names() -> None:
         }
     )
     deps = CollectDeps(
-        yandex=FakeMapApi(),
         twogis=FakeMapApi(),
         html=html,
         parser=FakeMapsParser(),

@@ -22,8 +22,6 @@ def _place(**fields: SourcedField) -> PlaceRecord:
     payload = {
         "venue_id": "v1",
         "title": "Студия",
-        "yandex_rating": _gap(),
-        "yandex_review_count": _gap(),
         "twogis_rating": _gap(),
         "twogis_review_count": _gap(),
         "address": _gap(),

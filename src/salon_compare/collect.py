@@ -79,10 +79,10 @@ class HtmlExtract(BaseModel):
 
 
 class PlaceRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     venue_id: str
     title: str
-    yandex_rating: SourcedField
-    yandex_review_count: SourcedField
     twogis_rating: SourcedField
     twogis_review_count: SourcedField
     address: SourcedField
@@ -97,11 +97,8 @@ class PlaceRecord(BaseModel):
     legal_candidates: tuple[LegalOrg, ...] = ()
     unreliable: bool = False
     hours: SourcedField = Field(default_factory=SourcedField)
-    yandex_last_review: SourcedField = Field(default_factory=SourcedField)
     twogis_last_review: SourcedField = Field(default_factory=SourcedField)
-    yandex_reviews_90d: SourcedField = Field(default_factory=SourcedField)
     twogis_reviews_90d: SourcedField = Field(default_factory=SourcedField)
-    yandex_plus_minus: SourcedField = Field(default_factory=SourcedField)
     twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
     district: SourcedField = Field(default_factory=SourcedField)
     metro: SourcedField = Field(default_factory=SourcedField)
@@ -149,7 +146,6 @@ class HtmlParser(Protocol):
 
 @dataclass(frozen=True)
 class CollectDeps:
-    yandex: MapApi
     twogis: MapApi
     html: HtmlFetcher
     parser: HtmlParser
@@ -192,34 +188,19 @@ def _found(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.FOUND)
 
 
-def _prefer_text(
-    primary: str | None,
-    primary_url: str,
-    secondary: str | None,
-    secondary_url: str,
-) -> SourcedField:
-    if primary:
-        return _found(primary, primary_url)
-    if secondary:
-        return _found(secondary, secondary_url)
-    return _missing()
-
-
 def _weak(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.WEAK)
 
 
 def _site_urls(
     hook: ClassifiedHook,
-    yandex: MapCard,
     twogis: MapCard,
 ) -> list[str]:
     raw: list[str] = []
     if hook.kind is HookKind.WEBSITE:
         raw.append(hook.normalized)
-    for card in (yandex, twogis):
-        if card.website:
-            raw.append(card.website)
+    if twogis.website:
+        raw.append(twogis.website)
     seen: set[str] = set()
     urls: list[str] = []
     for url in raw:
@@ -278,8 +259,6 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
     return PlaceRecord(
         venue_id=venue.venue_id,
         title=venue.title,
-        yandex_rating=gap,
-        yandex_review_count=gap,
         twogis_rating=gap,
         twogis_review_count=gap,
         address=gap,
@@ -313,25 +292,8 @@ def collect_place(
     legal_choice: str | None = None,
 ) -> PlaceRecord:
     html = _OnceHtml(deps.html)
-    yandex = _safe_card(deps.yandex, venue)
     twogis = _safe_card(deps.twogis, venue)
 
-    yandex_rating = _field(
-        yandex.rating,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.rating,
-        html,
-        deps.parser,
-    )
-    yandex_reviews = _field(
-        yandex.review_count,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.review_count,
-        html,
-        deps.parser,
-    )
     twogis_rating = _field(
         twogis.rating,
         twogis.source_url,
@@ -349,61 +311,43 @@ def collect_place(
         deps.parser,
     )
     address = _field(
-        yandex.address,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.address,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.address,
         html,
         deps.parser,
     )
-    if address.trust is Trust.MISSING:
-        address = _field(
-            twogis.address,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.address,
-            html,
-            deps.parser,
-        )
 
     neighbor_count = _field(
-        yandex.neighbor_count,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.neighbor_count,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.neighbor_count,
         html,
         deps.parser,
     )
-    if neighbor_count.trust is Trust.MISSING:
-        neighbor_count = _field(
-            twogis.neighbor_count,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.neighbor_count,
-            html,
-            deps.parser,
-        )
     neighbor_avg = _field(
-        yandex.neighbor_avg_rating,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.neighbor_avg_rating,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.neighbor_avg_rating,
         html,
         deps.parser,
     )
-    our = yandex_rating.value if yandex_rating.trust is Trust.FOUND else None
+    our = twogis_rating.value if twogis_rating.trust is Trust.FOUND else None
     if (
         isinstance(our, int | float)
         and isinstance(neighbor_avg.value, int | float)
         and neighbor_avg.trust is Trust.FOUND
     ):
         label = "выше" if float(neighbor_avg.value) > float(our) else "ниже"
-        neighbor_vs = _found(label, neighbor_avg.source_url or yandex.source_url)
+        neighbor_vs = _found(label, neighbor_avg.source_url or twogis.source_url)
     else:
         neighbor_vs = _missing()
 
     site_about = _missing()
-    for url in _site_urls(hook, yandex, twogis):
+    for url in _site_urls(hook, twogis):
         got = _field(
             None,
             "",
@@ -416,32 +360,13 @@ def collect_place(
             site_about = got
             break
 
-    legal = _collect_legal(
-        hook, yandex, twogis, html, deps.legal, legal_choice, deps.pacer
-    )
+    legal = _collect_legal(hook, twogis, html, deps.legal, legal_choice, deps.pacer)
     as_of = date.today()
     hours = _field(
-        yandex.hours,
-        yandex.source_url,
-        yandex.html_url,
+        twogis.hours,
+        twogis.source_url,
+        twogis.html_url,
         lambda item: item.hours,
-        html,
-        deps.parser,
-    )
-    if hours.trust is Trust.MISSING:
-        hours = _field(
-            twogis.hours,
-            twogis.source_url,
-            twogis.html_url,
-            lambda item: item.hours,
-            html,
-            deps.parser,
-        )
-    yandex_last = _field(
-        yandex.last_review,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.last_review,
         html,
         deps.parser,
     )
@@ -450,14 +375,6 @@ def collect_place(
         twogis.source_url,
         twogis.html_url,
         lambda item: item.last_review,
-        html,
-        deps.parser,
-    )
-    yandex_pm = _field(
-        yandex.plus_minus,
-        yandex.source_url,
-        yandex.html_url,
-        lambda item: item.plus_minus,
         html,
         deps.parser,
     )
@@ -473,8 +390,6 @@ def collect_place(
     return PlaceRecord(
         venue_id=venue.venue_id,
         title=venue.title,
-        yandex_rating=yandex_rating,
-        yandex_review_count=yandex_reviews,
         twogis_rating=twogis_rating,
         twogis_review_count=twogis_reviews,
         address=address,
@@ -488,18 +403,15 @@ def collect_place(
         kad=legal.kad,
         legal_candidates=legal.candidates,
         hours=hours,
-        yandex_last_review=yandex_last,
         twogis_last_review=twogis_last,
-        yandex_reviews_90d=_mark_90d(yandex_last, as_of),
         twogis_reviews_90d=_mark_90d(twogis_last, as_of),
-        yandex_plus_minus=yandex_pm,
         twogis_plus_minus=twogis_pm,
-        district=_prefer_text(
-            yandex.district, yandex.source_url, twogis.district, twogis.source_url
+        district=(
+            _found(twogis.district, twogis.source_url)
+            if twogis.district
+            else _missing()
         ),
-        metro=_prefer_text(
-            yandex.metro, yandex.source_url, twogis.metro, twogis.source_url
-        ),
+        metro=(_found(twogis.metro, twogis.source_url) if twogis.metro else _missing()),
     )
 
 
@@ -623,7 +535,6 @@ def _rusprofile_egrul(
 
 def _collect_legal(
     hook: ClassifiedHook,
-    yandex: MapCard,
     twogis: MapCard,
     html: HtmlFetcher,
     parser: LegalParser,
@@ -634,7 +545,6 @@ def _collect_legal(
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
     orgs = resolve_legal_orgs(
         hook,
-        yandex,
         twogis,
         _inn_hits(hook, html, parser, legal_choice),
     )
