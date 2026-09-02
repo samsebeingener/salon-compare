@@ -82,3 +82,14 @@ def test_page_matches_address_taganskaya() -> None:
 def test_labeled_ogrn_still_requires_label() -> None:
     assert labeled_ogrn("<p>ОГРН: 1147746349552</p>") == OGRN
     assert labeled_ogrn("<p>1147746349552</p>") is None
+    assert labeled_ogrn("<p>ОГРНИП 319774600285920</p>") == "319774600285920"
+
+
+def test_labeled_inn_prefers_twelve_digits() -> None:
+    assert labeled_inn("<p>ИНН: 750101059837</p>") == "750101059837"
+
+
+def test_internal_legal_links_includes_payment() -> None:
+    html = '<a href="/payment">оплата</a><a href="/politica">pol</a>'
+    links = internal_legal_links(html, "https://vishnyasalon.ru")
+    assert "https://vishnyasalon.ru/payment" in links

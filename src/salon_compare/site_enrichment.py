@@ -26,6 +26,14 @@ _PATH_KEYWORDS = (
     "о-нас",
     "o-nas",
     "legal",
+    "payment",
+    "pay",
+    "oplata",
+    "оплат",
+    "oferta",
+    "offer",
+    "agreement",
+    "soglashen",
 )
 _SKIP_DDG_HOSTS = (
     "2gis.",
