@@ -18,7 +18,10 @@ from salon_compare.maps_parse import (
 )
 from salon_compare.proxy import httpx_client_kwargs
 
-TWOGIS_FIELDS = "items.reviews,items.address_name,items.point"
+TWOGIS_FIELDS = (
+    "items.reviews,items.address_name,items.point,"
+    "items.contact_groups,items.schedule,items.org"
+)
 MOSCOW_REGION_ID = "32"
 
 
@@ -78,6 +81,7 @@ def _with_twogis_neighbors(key: str, ident: str, card: MapCard) -> MapCard:
         card.hours,
         card.last_review,
         card.plus_minus,
+        card.website,
     )
 
 

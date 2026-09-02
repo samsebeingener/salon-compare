@@ -97,6 +97,22 @@ def rbc_company_snippet(html: str, ogrn: str) -> str | None:
         start = idx + len(needle)
 
 
+def rbc_brand_names(html: str, ogrn: str) -> list[str]:
+    snippet = rbc_company_snippet(html, ogrn)
+    if snippet is None:
+        return []
+    match = re.search(
+        r"company-name-highlight[^>]*>(.*?)</a>",
+        snippet,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if match is None:
+        return []
+    text = unescape(re.sub(r"<[^>]+>", " ", match.group(1)))
+    text = re.sub(r"\s+", " ", text).strip()
+    return [text] if text else []
+
+
 _RUSPROFILE_ID = re.compile(
     r"(?:https?://)?(?:www\.)?rusprofile\.ru/id/(\d+)",
     re.IGNORECASE,

@@ -35,7 +35,7 @@ from salon_compare.report import (
     patch_field,
     rows_fingerprint,
 )
-from salon_compare.resolver import MapsSearchResolver
+from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
 from salon_compare.score import score_place
 from salon_compare.store import (
     collect_cache_key,
@@ -131,7 +131,11 @@ def _org_format(orgs: tuple[LegalOrg, ...]) -> Callable[[str], str]:
 
 
 def _resolver() -> MapsSearchResolver:
-    return MapsSearchResolver(map_api_from_env("twogis"), map_api_from_env("yandex"))
+    return MapsSearchResolver(
+        map_api_from_env("twogis"),
+        map_api_from_env("yandex"),
+        RbcBrandLookup(HttpxHtmlFetcher()),
+    )
 
 
 def _show_table(rows: list[PlaceRecord]) -> None:

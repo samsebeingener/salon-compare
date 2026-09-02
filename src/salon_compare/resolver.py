@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from salon_compare.collect import HtmlFetchResult
 from salon_compare.hooks import ClassifiedHook, HookKind, search_query
 from salon_compare.intake import VenueCandidate
-from salon_compare.legal import egrul_url
+from salon_compare.legal import egrul_url, rbc_brand_names, rbc_search_url
 from salon_compare.maps_parse import candidate_from_maps_url
 
 
@@ -14,10 +15,41 @@ class PlaceCatalog(Protocol):
     def search(self, query: str) -> list[VenueCandidate]: ...
 
 
+class BrandNameLookup(Protocol):
+    def names_for_ogrn(self, ogrn: str) -> list[str]: ...
+
+
+class HtmlGet(Protocol):
+    def get(self, url: str) -> HtmlFetchResult: ...
+
+
+class NullBrandNames:
+    def names_for_ogrn(self, ogrn: str) -> list[str]:
+        del ogrn
+        return []
+
+
+class RbcBrandLookup:
+    def __init__(self, html: HtmlGet) -> None:
+        self._html = html
+
+    def names_for_ogrn(self, ogrn: str) -> list[str]:
+        page = self._html.get(rbc_search_url(ogrn))
+        if page.status != "ok":
+            return []
+        return rbc_brand_names(page.body, ogrn)
+
+
 class MapsSearchResolver:
-    def __init__(self, twogis: PlaceCatalog, yandex: PlaceCatalog) -> None:
+    def __init__(
+        self,
+        twogis: PlaceCatalog,
+        yandex: PlaceCatalog,
+        brands: BrandNameLookup | None = None,
+    ) -> None:
         self._twogis = twogis
         self._yandex = yandex
+        self._brands = brands or NullBrandNames()
 
     def resolve(self, hook: ClassifiedHook) -> list[VenueCandidate]:
         if hook.kind is HookKind.MAPS_LINK:
@@ -27,6 +59,13 @@ class MapsSearchResolver:
         merged = _unique([*self._twogis.search(query), *self._yandex.search(query)])
         if merged:
             return merged
+        if hook.kind is HookKind.OGRN:
+            for name in self._brands.names_for_ogrn(hook.normalized):
+                extra = _unique(
+                    [*self._twogis.search(name), *self._yandex.search(name)]
+                )
+                if extra:
+                    return extra
         fallback = _fallback_without_maps(hook)
         return [fallback] if fallback is not None else []
 

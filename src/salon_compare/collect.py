@@ -121,6 +121,7 @@ class MapCard:
     hours: str | None = None
     last_review: str | None = None
     plus_minus: str | None = None
+    website: str | None = None
 
 
 @dataclass(frozen=True)
@@ -189,6 +190,28 @@ def _found(value: float | int | str, source_url: str) -> SourcedField:
 
 def _weak(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.WEAK)
+
+
+def _site_urls(
+    hook: ClassifiedHook,
+    yandex: MapCard,
+    twogis: MapCard,
+) -> list[str]:
+    raw: list[str] = []
+    if hook.kind is HookKind.WEBSITE:
+        raw.append(hook.normalized)
+    for card in (yandex, twogis):
+        if card.website:
+            raw.append(card.website)
+    seen: set[str] = set()
+    urls: list[str] = []
+    for url in raw:
+        key = url.rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        urls.append(url)
+    return urls
 
 
 def _is_paced(url: str) -> bool:
@@ -363,15 +386,18 @@ def collect_place(
         neighbor_vs = _missing()
 
     site_about = _missing()
-    if hook.kind is HookKind.WEBSITE:
-        site_about = _field(
+    for url in _site_urls(hook, yandex, twogis):
+        got = _field(
             None,
             "",
-            hook.normalized,
+            url,
             lambda item: item.about,
             html,
             deps.parser,
         )
+        if got.trust is not Trust.MISSING:
+            site_about = got
+            break
 
     legal = _collect_legal(
         hook, yandex, twogis, html, deps.legal, legal_choice, deps.pacer

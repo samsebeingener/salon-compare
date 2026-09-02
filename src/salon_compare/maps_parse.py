@@ -137,6 +137,36 @@ def _geo_point(payload: dict[str, object]) -> tuple[float | None, float | None]:
     return None, None
 
 
+def _contact_website(item: dict[str, object]) -> str | None:
+    groups = item.get("contact_groups")
+    if not isinstance(groups, list):
+        return None
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        contacts = group.get("contacts")
+        if not isinstance(contacts, list):
+            continue
+        for contact in contacts:
+            if not isinstance(contact, dict):
+                continue
+            if str(contact.get("type", "")).lower() != "website":
+                continue
+            found = _http_url(contact.get("url")) or _http_url(contact.get("value"))
+            if found is not None:
+                return found
+    return None
+
+
+def _http_url(raw: object) -> str | None:
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip().rstrip("/")
+    if text.startswith("http://") or text.startswith("https://"):
+        return text
+    return None
+
+
 def card_from_twogis(item: dict[str, object]) -> MapCard:
     ogrn, inn = _org_ids(item)
     reviews = item.get("reviews")
@@ -155,7 +185,18 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
     html_url = f"https://2gis.ru/firm/{ident}" if isinstance(ident, str) else ""
     lon, lat = _geo_point(item)
     return MapCard(
-        rating, count, address, html_url, html_url, None, None, ogrn, inn, lon, lat
+        rating,
+        count,
+        address,
+        html_url,
+        html_url,
+        None,
+        None,
+        ogrn,
+        inn,
+        lon,
+        lat,
+        website=_contact_website(item),
     )
 
 
@@ -181,11 +222,12 @@ def card_from_yandex(feature: dict[str, object]) -> MapCard:
         if isinstance(raw_count, int):
             count = raw_count
     ident = meta.get("id")
+    url = meta.get("url")
     html_url = ""
     if isinstance(ident, str):
         html_url = f"https://yandex.ru/maps/org/{ident}"
-    url = meta.get("url")
-    source = url if isinstance(url, str) and url else html_url
+    website = _http_url(url)
+    source = html_url or (website or "")
     hours_block = meta.get("Hours")
     hours: str | None = None
     if isinstance(hours_block, dict):
@@ -204,4 +246,5 @@ def card_from_yandex(feature: dict[str, object]) -> MapCard:
         ogrn,
         inn,
         hours=hours,
+        website=website,
     )
