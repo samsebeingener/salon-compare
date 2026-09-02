@@ -198,6 +198,7 @@ def test_app_uses_search_resolver_and_confirmation() -> None:
     assert "PassthroughResolver" not in text
     assert "st.radio" in text
     assert "apply_slot_choices" in text
+    assert "candidate_label" in text
 
 
 def test_compose_forwards_map_keys() -> None:

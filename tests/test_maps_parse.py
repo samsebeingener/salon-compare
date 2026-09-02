@@ -1,4 +1,9 @@
-from salon_compare.maps_parse import card_from_twogis, card_from_yandex
+from salon_compare.maps_parse import (
+    candidates_from_twogis_items,
+    candidates_from_yandex_features,
+    card_from_twogis,
+    card_from_yandex,
+)
 
 
 def test_parse_twogis_reviews_and_address() -> None:
@@ -70,3 +75,41 @@ def test_parse_yandex_optional_rating() -> None:
     assert card.rating == 4.2
     assert card.review_count == 15
     assert card.address == "Москва"
+
+
+def test_twogis_search_hits_keep_distinct_addresses() -> None:
+    found = candidates_from_twogis_items(
+        [
+            {
+                "id": "70000001020631928",
+                "name": "I like nails, студия маникюра",
+                "address_name": "Москва, Бауманская",
+            },
+            {
+                "id": "70000001035144425",
+                "name": "I like nails, студия маникюра",
+                "full_address_name": "Москва, Таганская",
+                "address_name": "Таганская",
+            },
+        ]
+    )
+    assert found[0].address == "Москва, Бауманская"
+    assert found[1].address == "Москва, Таганская"
+
+
+def test_yandex_search_hit_keeps_address() -> None:
+    found = candidates_from_yandex_features(
+        [
+            {
+                "properties": {
+                    "CompanyMetaData": {
+                        "id": "org-1",
+                        "name": "I like nails",
+                        "address": "Москва, Бауманская",
+                    }
+                }
+            }
+        ]
+    )
+    assert found[0].title == "I like nails"
+    assert found[0].address == "Москва, Бауманская"
