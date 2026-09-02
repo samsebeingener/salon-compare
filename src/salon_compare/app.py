@@ -8,6 +8,7 @@ from salon_compare.collect import (
     CollectDeps,
     EmptyParser,
     PlaceRecord,
+    SleepPacer,
     SourcedField,
     Trust,
     collect_three,
@@ -35,9 +36,13 @@ hook_three = st.text_input("Зацепка 3")
 def _cell(field: SourcedField) -> str:
     if field.trust is Trust.MISSING or field.value is None:
         return "не найдено"
-    if field.source_url:
-        return f"{field.value} · {field.source_url}"
-    return str(field.value)
+    link = f" · {field.source_url}" if field.source_url else ""
+    if field.trust is Trust.WEAK:
+        return f"{field.value} · слабо{link}"
+    if field.trust is Trust.FOUND:
+        return f"{field.value}{link}" if field.source_url else str(field.value)
+    unreachable: Trust = field.trust
+    raise ValueError(unreachable)
 
 
 def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
@@ -164,6 +169,7 @@ if outcome is not None:
                 html=HttpxHtmlFetcher(),
                 parser=EmptyParser(),
                 legal=MarkerLegalParser(),
+                pacer=SleepPacer(3.0),
             ),
             legal_choices=legal_choices,
         )
