@@ -281,7 +281,7 @@ def test_app_asks_legal_confirm_and_shows_registry_rows() -> None:
     assert "ЕГРЮЛ" in text
     assert "Федресурс" in text
     assert "КАД" in text
-    assert "индекс" not in text.lower()
+    assert "покупай" not in text.lower()
 
 
 def test_readme_mentions_registries() -> None:
