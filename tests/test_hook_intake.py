@@ -18,17 +18,23 @@ class ScriptedResolver:
 
 
 def test_classify_demo_triple() -> None:
-    assert classify_hook("https://pinklemon-nails.ru/baumanskaya").kind is HookKind.WEBSITE
+    site = classify_hook("https://pinklemon-nails.ru/baumanskaya")
+    assert site.kind is HookKind.WEBSITE
     assert classify_hook("Вишня Таганская").kind is HookKind.NAME
     assert classify_hook("1147746349552").kind is HookKind.OGRN
 
 
 def test_classify_inn_maps_booking_and_free_text() -> None:
     assert classify_hook("7707083893").kind is HookKind.INN
-    assert classify_hook("https://yandex.ru/maps/org/123").kind is HookKind.MAPS_LINK
-    assert classify_hook("https://2gis.ru/moscow/firm/123").kind is HookKind.MAPS_LINK
-    assert classify_hook("https://n12345.yclients.com/company/1").kind is HookKind.BOOKING_LINK
-    blob = "студия у метро рядом с пекарней на первой линии дома 15 корпус 2 после ремонта"
+    maps_yandex = classify_hook("https://yandex.ru/maps/org/123")
+    assert maps_yandex.kind is HookKind.MAPS_LINK
+    maps_2gis = classify_hook("https://2gis.ru/moscow/firm/123")
+    assert maps_2gis.kind is HookKind.MAPS_LINK
+    booking = classify_hook("https://n12345.yclients.com/company/1")
+    assert booking.kind is HookKind.BOOKING_LINK
+    blob = (
+        "студия у метро рядом с пекарней на первой линии дома 15 корпус 2 после ремонта"
+    )
     assert classify_hook(blob).kind is HookKind.FREE_TEXT
 
 
@@ -103,9 +109,17 @@ def test_ready_when_three_distinct_venues() -> None:
     ogrn = classify_hook("1147746349552")
     resolver = ScriptedResolver(
         {
-            pink.normalized: [VenueCandidate("1", "Pinklemon", "https://pinklemon-nails.ru/baumanskaya")],
-            name.normalized: [VenueCandidate("2", "Вишня", "https://example.com/vishnya")],
-            ogrn.normalized: [VenueCandidate("3", "I LIKE NAILS", "https://example.com/ogrn")],
+            pink.normalized: [
+                VenueCandidate(
+                    "1", "Pinklemon", "https://pinklemon-nails.ru/baumanskaya"
+                )
+            ],
+            name.normalized: [
+                VenueCandidate("2", "Вишня", "https://example.com/vishnya")
+            ],
+            ogrn.normalized: [
+                VenueCandidate("3", "I LIKE NAILS", "https://example.com/ogrn")
+            ],
         }
     )
     outcome = resolve_intake(

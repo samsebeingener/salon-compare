@@ -49,7 +49,3 @@ def test_compose_forwards_proxy_env() -> None:
 
 def test_streamlit_app_module_exists() -> None:
     assert (ROOT / "src" / "salon_compare" / "app.py").is_file()
-
-
-def test_streamlit_app_module_exists() -> None:
-    assert (ROOT / "src" / "salon_compare" / "app.py").is_file()
