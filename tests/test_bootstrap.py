@@ -10,6 +10,22 @@ def test_env_example_lists_required_keys() -> None:
     assert "LLM_API_KEY" in text
     assert "LLM_BASE_URL" in text
     assert "LLM_MODEL" in text
+    assert "HTTP_PROXY" in text
+    assert "HTTPS_PROXY" in text
+
+
+def test_readme_documents_rf_llm_proxy() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "HTTP_PROXY" in text
+    assert "HTTPS_PROXY" in text
+    assert "РФ" in text or "Росси" in text
+
+
+def test_httpx_client_trusts_env_proxy() -> None:
+    from salon_compare.proxy import httpx_client_kwargs
+
+    kwargs = httpx_client_kwargs()
+    assert kwargs["trust_env"] is True
 
 
 def test_quality_script_exists() -> None:
