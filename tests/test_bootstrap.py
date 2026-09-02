@@ -12,6 +12,8 @@ def test_env_example_lists_required_keys() -> None:
     assert "LLM_MODEL" in text
     assert "HTTP_PROXY" in text
     assert "HTTPS_PROXY" in text
+    assert "USER:PASSWORD@HOST:PORT" in text
+    assert "127.0.0.1:8080" not in text
 
 
 def test_readme_documents_rf_llm_proxy() -> None:
@@ -19,6 +21,8 @@ def test_readme_documents_rf_llm_proxy() -> None:
     assert "HTTP_PROXY" in text
     assert "HTTPS_PROXY" in text
     assert "РФ" in text or "Росси" in text
+    assert "USER:PASSWORD@HOST:PORT" in text
+    assert "127.0.0.1:8080" not in text
 
 
 def test_httpx_client_trusts_env_proxy() -> None:
