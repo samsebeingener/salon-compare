@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 from typing import Protocol
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,6 +23,7 @@ from salon_compare.legal import (
     fedresurs_url,
     is_ogrn,
     kad_url,
+    labeled_ogrn,
     rbc_company_snippet,
     rbc_search_url,
     resolve_legal_orgs,
@@ -186,6 +188,17 @@ def _weak(value: float | int | str, source_url: str) -> SourcedField:
     return SourcedField(value=value, source_url=source_url, trust=Trust.WEAK)
 
 
+def html_suffix_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    path = parsed.path
+    if not path or path.endswith("/"):
+        return None
+    last = path.rsplit("/", 1)[-1]
+    if not last or "." in last:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}{path}.html"
+
+
 def _site_urls(
     hook: ClassifiedHook,
     twogis: MapCard,
@@ -204,6 +217,41 @@ def _site_urls(
         seen.add(key)
         urls.append(url)
     return urls
+
+
+def _collect_site(
+    hook: ClassifiedHook,
+    twogis: MapCard,
+    html: HtmlFetcher,
+    parser: HtmlParser,
+) -> tuple[SourcedField, str | None]:
+    ogrn: str | None = None
+    seen: set[str] = set()
+    queue = list(_site_urls(hook, twogis))
+    index = 0
+    while index < len(queue):
+        url = queue[index]
+        index += 1
+        key = url.rstrip("/")
+        if key in seen:
+            continue
+        seen.add(key)
+        page = html.get(url)
+        if page.status == "ok":
+            if ogrn is None:
+                found = labeled_ogrn(page.body)
+                if found is not None:
+                    ogrn = found
+            extracted = parser.parse(page.body).about
+            if extracted is not None:
+                return _found(extracted, url), ogrn
+            continue
+        if page.status != "empty":
+            continue
+        extra = html_suffix_url(url)
+        if extra is not None and extra.rstrip("/") not in seen:
+            queue.append(extra)
+    return _missing(), ogrn
 
 
 def _is_paced(url: str) -> bool:
@@ -340,21 +388,16 @@ def collect_place(
     else:
         neighbor_vs = _missing()
 
-    site_about = _missing()
-    for url in _site_urls(hook, twogis):
-        got = _field(
-            None,
-            "",
-            url,
-            lambda item: item.about,
-            html,
-            deps.parser,
-        )
-        if got.trust is not Trust.MISSING:
-            site_about = got
-            break
-
-    legal = _collect_legal(hook, twogis, html, deps.legal, legal_choice, deps.pacer)
+    site_about, site_ogrn = _collect_site(hook, twogis, html, deps.parser)
+    legal = _collect_legal(
+        hook,
+        twogis,
+        html,
+        deps.legal,
+        legal_choice,
+        deps.pacer,
+        extra_ogrn=site_ogrn,
+    )
     as_of = date.today()
     hours = _field(
         twogis.hours,
@@ -534,6 +577,7 @@ def _collect_legal(
     parser: LegalParser,
     legal_choice: str | None,
     pacer: RequestPacer,
+    extra_ogrn: str | None = None,
 ) -> _LegalBundle:
     gap = _missing()
     empty = _LegalBundle((), gap, gap, gap, gap, gap)
@@ -541,6 +585,7 @@ def _collect_legal(
         hook,
         twogis,
         _inn_hits(hook, html, parser, legal_choice),
+        extra_ogrn=extra_ogrn,
     )
     if legal_choice:
         picked = [item for item in orgs if item.ogrn == legal_choice]

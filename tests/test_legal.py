@@ -19,6 +19,7 @@ from salon_compare.legal import (
     egrul_url,
     fedresurs_url,
     kad_url,
+    labeled_ogrn,
     resolve_legal_orgs,
 )
 
@@ -160,8 +161,6 @@ def test_ogrn_fills_three_registries() -> None:
 
 
 def test_labeled_ogrn_reads_marker_not_bare_digits() -> None:
-    from salon_compare.legal import labeled_ogrn
-
     assert labeled_ogrn(f"ОГРН {OGRN} в подвале") == OGRN
     assert labeled_ogrn("ОГРН/ОГРНИП 1147746349552") == OGRN
     assert labeled_ogrn("id 1495810359387 в скрипте") is None
@@ -169,9 +168,7 @@ def test_labeled_ogrn_reads_marker_not_bare_digits() -> None:
 
 def test_site_labeled_ogrn_hits_egrul_when_maps_empty() -> None:
     site = "https://studio.example/place"
-    html = FakeHtml(
-        {site: HtmlFetchResult("ok", f"<p>ОГРН {OGRN}</p>", site)}
-    )
+    html = FakeHtml({site: HtmlFetchResult("ok", f"<p>ОГРН {OGRN}</p>", site)})
     collect_place(_venue(), classify_hook(site), _deps(html))
     assert egrul_url(OGRN) in html.calls
 

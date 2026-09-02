@@ -136,20 +136,38 @@ def is_ogrn(value: str) -> bool:
     return value.isdigit() and len(value) in {13, 15}
 
 
+_LABELED_OGRN = re.compile(
+    r"огрн(?:\s*/\s*огрнип)?\s*[:№]?\s*(\d{13}|\d{15})",
+    re.IGNORECASE,
+)
+
+
+def labeled_ogrn(html: str) -> str | None:
+    match = _LABELED_OGRN.search(unescape(html))
+    if match is None:
+        return None
+    value = match.group(1)
+    return value if is_ogrn(value) else None
+
+
 def resolve_legal_orgs(
     hook: ClassifiedHook,
     twogis: LegalIdCard,
     inn_hits: Sequence[LegalOrg],
+    extra_ogrn: str | None = None,
 ) -> list[LegalOrg]:
     if hook.kind is HookKind.OGRN:
         return [LegalOrg(hook.normalized, hook.raw.strip(), egrul_url(hook.normalized))]
     if hook.kind is HookKind.INN:
         return list(inn_hits)
     ident = (twogis.ogrn or "").strip()
-    if not is_ogrn(ident):
-        return []
-    url = twogis.source_url or egrul_url(ident)
-    return [LegalOrg(ident, ident, url)]
+    if is_ogrn(ident):
+        url = twogis.source_url or egrul_url(ident)
+        return [LegalOrg(ident, ident, url)]
+    extra = (extra_ogrn or "").strip()
+    if is_ogrn(extra):
+        return [LegalOrg(extra, extra, egrul_url(extra))]
+    return []
 
 
 _DATE = re.compile(r"\b(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b")
