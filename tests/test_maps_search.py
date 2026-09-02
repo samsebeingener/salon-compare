@@ -29,6 +29,14 @@ class FakeCatalog:
         return list(self.mapping.get(query, []))
 
 
+class FakeBrandNames:
+    def __init__(self, mapping: dict[str, list[str]]) -> None:
+        self.mapping = mapping
+
+    def names_for_ogrn(self, ogrn: str) -> list[str]:
+        return list(self.mapping.get(ogrn, []))
+
+
 def test_search_query_uses_domain_and_digits() -> None:
     assert search_query(classify_hook(PINK)) == "pinklemon-nails.ru"
     assert search_query(classify_hook(OGRN)) == OGRN
@@ -113,6 +121,47 @@ def test_empty_maps_inn_and_free_text_get_fallback() -> None:
     assert inn_hits[0].venue_id.startswith("inn:")
     assert len(text_hits) == 1
     assert text_hits[0].venue_id.startswith("text:")
+
+
+def test_ogrn_digits_miss_searches_maps_by_rbc_brand() -> None:
+    a = VenueCandidate("twogis:a", "I LIKE 1", "https://2gis.ru/firm/a", "twogis")
+    b = VenueCandidate("twogis:b", "I LIKE 2", "https://2gis.ru/firm/b", "twogis")
+    catalog = FakeCatalog({"I LIKE NAILS": [a, b]})
+    outcome = resolve_intake(
+        [PINK, VISHNYA, OGRN],
+        MapsSearchResolver(
+            catalog,
+            FakeCatalog({}),
+            FakeBrandNames({OGRN: ["I LIKE NAILS"]}),
+        ),
+    )
+    assert outcome.status is IntakeStatus.NEED_DISAMBIGUATION
+    assert outcome.chosen_venues is None
+    ogrn_slot = outcome.candidates_by_slot[2]
+    assert {item.source_url for item in ogrn_slot} == {
+        "https://2gis.ru/firm/a",
+        "https://2gis.ru/firm/b",
+    }
+    assert OGRN in catalog.queries
+    assert "I LIKE NAILS" in catalog.queries
+
+
+def test_ogrn_digits_miss_one_brand_hit_is_that_card() -> None:
+    hit = VenueCandidate("twogis:o", "I LIKE NAILS", "https://2gis.ru/firm/o", "twogis")
+    catalog = FakeCatalog({"I LIKE NAILS": [hit]})
+    found = MapsSearchResolver(
+        catalog,
+        FakeCatalog({}),
+        FakeBrandNames({OGRN: ["I LIKE NAILS"]}),
+    ).resolve(classify_hook(OGRN))
+    assert [item.venue_id for item in found] == ["twogis:o"]
+
+
+def test_readme_cross_source_not_one_way() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert "2гис" in text or "2gis" in text
+    assert "бренд" in text
+    assert "только сайт" not in text
 
 
 def test_readme_demo_works_without_map_keys() -> None:

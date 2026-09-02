@@ -17,6 +17,7 @@ from salon_compare.legal import (
     MarkerLegalParser,
     ddg_rusprofile_url,
     egrul_url,
+    rbc_brand_names,
     rbc_company_snippet,
     rbc_search_url,
 )
@@ -121,6 +122,12 @@ def test_rbc_snippet_needs_card_not_heading() -> None:
     assert rbc_company_snippet(RBC_CARD, OGRN) is not None
     assert OGRN in (rbc_company_snippet(RBC_CARD, OGRN) or "")
     assert rbc_company_snippet(RBC_HEADING_ONLY, OGRN) is None
+
+
+def test_rbc_brand_name_from_highlight_not_generic_legal_phrase() -> None:
+    names = rbc_brand_names(RBC_CARD, OGRN)
+    assert names == ["I LIKE NAILS"]
+    assert rbc_brand_names(RBC_HEADING_ONLY, OGRN) == []
 
 
 def test_egrul_empty_fills_weak_from_rbc() -> None:

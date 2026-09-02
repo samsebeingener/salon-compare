@@ -46,3 +46,5 @@ def test_twogis_search_sends_region_id(monkeypatch: pytest.MonkeyPatch) -> None:
     sent = captured["params"]
     assert sent["region_id"] == "32"
     assert sent["q"] == "Вишня Таганская"
+    assert "contact_groups" in sent["fields"]
+    assert "org" in sent["fields"]

@@ -252,6 +252,31 @@ def test_website_ok_and_forbidden() -> None:
     assert closed.site_about.trust is Trust.MISSING
 
 
+def test_ogrn_hook_loads_site_from_twogis_website() -> None:
+    site = "https://studio.example"
+    html = FakeHtml({site: HtmlFetchResult("ok", "<html>о нас</html>", site)})
+    twogis = MapCard(
+        rating=4.6,
+        review_count=80,
+        address="Москва",
+        source_url="https://2gis.ru/firm/1",
+        html_url="https://2gis.ru/firm/1",
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=site,
+    )
+    deps = CollectDeps(
+        yandex=FakeMapApi(None),
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=FakeParser(HtmlExtract(about="Студия у метро")),
+    )
+    place = collect_place(_venue(), classify_hook("1147746349552"), deps)
+    assert place.site_about.value == "Студия у метро"
+    assert place.site_about.source_url == site
+    assert site in html.calls
+
+
 def test_app_shows_fields_table_without_score_index() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
