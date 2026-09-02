@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from html import unescape
+from urllib.parse import urlparse
 
 from salon_compare.collect import HtmlExtract
 
@@ -34,6 +35,25 @@ _META_CONTENT_THEN_NAME = re.compile(
     re.IGNORECASE,
 )
 _TAGS = re.compile(r"<[^>]+>")
+_WEBSITE_TYPED = re.compile(
+    r'"type"\s*:\s*"website"[^}]{0,500}?"(?:url|value)"\s*:\s*"([^"]+)"',
+    re.IGNORECASE | re.DOTALL,
+)
+_WEBSITE_TYPED_ALT = re.compile(
+    r'"(?:url|value)"\s*:\s*"([^"]+)"[^}]{0,500}?"type"\s*:\s*"website"',
+    re.IGNORECASE | re.DOTALL,
+)
+_HREF = re.compile(r"""href=["'](https?://[^"'#]+)["']""", re.IGNORECASE)
+_SKIP_HOST_BITS = (
+    "2gis.",
+    "yandex.",
+    "google.",
+    "whatsapp.",
+    "instagram.",
+    "facebook.",
+    "vk.com",
+    "t.me",
+)
 
 
 class _LdFields:
@@ -181,6 +201,33 @@ def _about_from_heading(html: str) -> str | None:
     return _clip(text)
 
 
+def _studio_website(raw: str) -> str | None:
+    text = unescape(raw).strip().rstrip("/")
+    if not text:
+        return None
+    if not text.startswith("http://") and not text.startswith("https://"):
+        if "." not in text or " " in text:
+            return None
+        text = "https://" + text
+    host = urlparse(text).netloc.lower().removeprefix("www.")
+    if not host or any(bit in host for bit in _SKIP_HOST_BITS):
+        return None
+    return text
+
+
+def _website_from_html(text: str) -> str | None:
+    typed = _WEBSITE_TYPED.search(text) or _WEBSITE_TYPED_ALT.search(text)
+    if typed is not None:
+        found = _studio_website(typed.group(1))
+        if found is not None:
+            return found
+    for match in _HREF.finditer(text):
+        found = _studio_website(match.group(1))
+        if found is not None:
+            return found
+    return None
+
+
 def parse_open_html(html: str) -> HtmlExtract:
     text = unescape(html)
     dates: list[str] = []
@@ -228,6 +275,7 @@ def parse_open_html(html: str) -> HtmlExtract:
         last_review=last,
         hours=hours,
         plus_minus=plus_minus,
+        website=_website_from_html(text),
     )
 
 

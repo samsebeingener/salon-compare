@@ -83,7 +83,7 @@ def test_full_api_skips_html() -> None:
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.twogis_rating.trust is Trust.FOUND
     assert place.twogis_rating.value == 4.7
-    assert html.calls == []
+    assert html.calls == ["https://2gis.example/a/html"]
 
 
 def test_missing_api_rating_taken_from_html() -> None:
@@ -187,7 +187,7 @@ def test_neighbors_from_api_skip_html() -> None:
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.neighbor_count.value == 5
     assert place.neighbor_vs.value == "ниже"
-    assert html.calls == []
+    assert html.calls == ["https://2gis.example/a/html"]
 
 
 def test_neighbors_blocked_html_missing_not_zero() -> None:

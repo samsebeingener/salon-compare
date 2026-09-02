@@ -78,6 +78,7 @@ class HtmlExtract(BaseModel):
     hours: str | None = None
     last_review: str | None = None
     plus_minus: str | None = None
+    website: str | None = None
 
 
 class PlaceRecord(BaseModel):
@@ -219,15 +220,39 @@ def _site_urls(
     return urls
 
 
+def _website_from_maps_html(
+    html_url: str,
+    html: HtmlFetcher,
+    parser: HtmlParser,
+) -> str | None:
+    if not html_url:
+        return None
+    page = html.get(html_url)
+    if page.status != "ok":
+        return None
+    found = parser.parse(page.body).website
+    if not found:
+        return None
+    host = urlparse(found).netloc.lower()
+    if "2gis." in host:
+        return None
+    return found
+
+
 def _collect_site(
     hook: ClassifiedHook,
     twogis: MapCard,
     html: HtmlFetcher,
     parser: HtmlParser,
 ) -> tuple[SourcedField, str | None]:
+    maps_site = twogis.website or _website_from_maps_html(twogis.html_url, html, parser)
     ogrn: str | None = None
     seen: set[str] = set()
     queue = list(_site_urls(hook, twogis))
+    if maps_site:
+        key = maps_site.rstrip("/")
+        if key not in {item.rstrip("/") for item in queue}:
+            queue.append(maps_site)
     index = 0
     while index < len(queue):
         url = queue[index]
