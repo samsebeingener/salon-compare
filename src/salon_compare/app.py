@@ -22,8 +22,19 @@ from salon_compare.intake import (
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
+from salon_compare.llm import NullLlm, make_llm
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
+from salon_compare.report import (
+    EDITABLE_FIELDS,
+    FIELD_LABELS,
+    ModelVerdict,
+    card_payload,
+    complete_verdict,
+    mark_unreliable,
+    patch_field,
+    rows_fingerprint,
+)
 from salon_compare.resolver import MapsSearchResolver
 from salon_compare.score import score_place
 from salon_compare.store import (
@@ -53,7 +64,13 @@ if _saved:
         loaded = load_run(int(_picked))
         if loaded:
             st.session_state["saved_rows"] = loaded
+            st.session_state["working_rows"] = list(loaded)
+            st.session_state["working_key"] = (
+                "saved",
+                tuple(row.venue_id for row in loaded),
+            )
             st.session_state.pop("outcome", None)
+            st.session_state.pop("llm_fp", None)
 
 hook_one = st.text_input("Зацепка 1")
 hook_two = st.text_input("Зацепка 2")
@@ -137,7 +154,8 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     for row in rows:
         scored = score_place(row)
         index_cell = "не найдено" if scored.index is None else str(scored.index)
-        table[row.title] = [
+        heading = f"{row.title} · недостоверный" if row.unreliable else row.title
+        table[heading] = [
             _cell(row.yandex_rating),
             _cell(row.yandex_review_count),
             _cell(row.twogis_rating),
@@ -158,8 +176,111 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     st.caption("Ориентир по формуле, не инвестиционный совет.")
 
 
+def _working_rows(rows: list[PlaceRecord], key: object) -> list[PlaceRecord]:
+    if st.session_state.get("working_key") != key:
+        st.session_state["working_rows"] = list(rows)
+        st.session_state["working_key"] = key
+        st.session_state.pop("llm_fp", None)
+    current = st.session_state.get("working_rows")
+    if not isinstance(current, list) or not current:
+        st.session_state["working_rows"] = list(rows)
+        return list(rows)
+    typed = [item for item in current if isinstance(item, PlaceRecord)]
+    if not typed:
+        st.session_state["working_rows"] = list(rows)
+        return list(rows)
+    return typed
+
+
+def _replace_working(index: int, row: PlaceRecord) -> None:
+    current = list(st.session_state.get("working_rows", []))
+    if index < 0 or index >= len(current):
+        return
+    current[index] = row
+    st.session_state["working_rows"] = current
+    st.session_state.pop("llm_fp", None)
+    saved = st.session_state.get("saved_rows")
+    if isinstance(saved, list) and len(saved) == len(current):
+        st.session_state["saved_rows"] = current
+
+
+def _show_cards(rows: list[PlaceRecord]) -> None:
+    st.subheader("Карточки")
+    for row in rows:
+        scored = score_place(row)
+        card = card_payload(row, scored)
+        mark = " · недостоверный" if card["unreliable"] else ""
+        index_text = "не найдено" if card["index"] is None else str(card["index"])
+        st.markdown(f"**{card['title']}**{mark}")
+        st.write(f"Индекс: {index_text}. {card['note']}")
+        for item in card["fields"]:
+            st.write(f"{item['label']}: {item['text']}")
+        if card["missing"]:
+            st.write("Не нашли: " + ", ".join(card["missing"]))
+
+
+def _show_corrections(rows: list[PlaceRecord]) -> None:
+    st.subheader("Правки")
+    labels = dict(FIELD_LABELS)
+    picked = st.selectbox(
+        "Точка",
+        range(len(rows)),
+        format_func=lambda index: rows[int(index)].title,
+        key="edit-venue",
+    )
+    field_name = st.selectbox(
+        "Поле",
+        list(EDITABLE_FIELDS),
+        format_func=lambda name: labels[str(name)],
+        key="edit-field",
+    )
+    raw = st.text_input("Новое значение", key="edit-value")
+    left, right = st.columns(2)
+    if left.button("Поправить поле") and picked is not None and field_name:
+        updated = patch_field(rows[int(picked)], str(field_name), raw)
+        _replace_working(int(picked), updated)
+        st.rerun()
+    if right.button("Пометить недостоверным") and picked is not None:
+        _replace_working(int(picked), mark_unreliable(rows[int(picked)]))
+        st.rerun()
+
+
+def _show_verdict(rows: list[PlaceRecord]) -> None:
+    st.subheader("Вывод модели")
+    st.caption("текст модели, не инвестиционный совет")
+    fingerprint = rows_fingerprint(rows)
+    if st.session_state.get("llm_fp") != fingerprint:
+        llm = make_llm()
+        st.session_state["llm_kind"] = type(llm).__name__
+        st.session_state["llm_verdict"] = complete_verdict(rows, llm)
+        st.session_state["llm_fp"] = fingerprint
+    verdict = st.session_state.get("llm_verdict")
+    kind = st.session_state.get("llm_kind")
+    if not isinstance(verdict, ModelVerdict) and kind == NullLlm.__name__:
+        st.write("вывод модели не найден (нет ключа)")
+        return
+    if not isinstance(verdict, ModelVerdict):
+        st.write("вывод модели не разобран")
+        return
+    st.write(f"Интереснее: {verdict.interesting}")
+    st.write(f"Чем лучше: {verdict.why_better}")
+    st.write(f"Сломается, если: {verdict.breaks_if}")
+    if verdict.compared_index is not None:
+        st.write(f"Индекс в выводе: {verdict.compared_index}")
+
+
+def _show_report(rows: list[PlaceRecord]) -> None:
+    _show_table(rows)
+    _show_cards(rows)
+    _show_corrections(rows)
+    _show_verdict(rows)
+
+
 if st.button("Разобрать зацепки"):
     st.session_state.pop("saved_rows", None)
+    st.session_state.pop("working_rows", None)
+    st.session_state.pop("working_key", None)
+    st.session_state.pop("llm_fp", None)
     st.session_state["outcome"] = resolve_intake(
         [hook_one, hook_two, hook_three],
         _resolver(),
@@ -167,10 +288,19 @@ if st.button("Разобрать зацепки"):
     st.session_state["legal_choices"] = {}
 
 outcome = st.session_state.get("outcome")
-saved_rows = st.session_state.get("saved_rows")
+saved_raw = st.session_state.get("saved_rows")
+saved_rows = (
+    [item for item in saved_raw if isinstance(item, PlaceRecord)]
+    if isinstance(saved_raw, list)
+    else []
+)
 if saved_rows:
     st.write("Сохранённый разбор, нового поиска нет.")
-    _show_table(saved_rows)
+    display = _working_rows(
+        saved_rows,
+        ("saved", tuple(row.venue_id for row in saved_rows)),
+    )
+    _show_report(display)
 elif outcome is not None:
     st.write(outcome.message)
     for index, hook in enumerate(outcome.classified, start=1):
@@ -246,7 +376,8 @@ elif outcome is not None:
                 legal_choices.update(picked_legal)
                 st.session_state["legal_choices"] = legal_choices
                 st.rerun()
-        _show_table(rows)
+        display = _working_rows(rows, key)
+        _show_report(display)
     else:
         for slot in outcome.candidates_by_slot:
             for candidate in slot:
