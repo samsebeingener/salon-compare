@@ -5,10 +5,11 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from enum import StrEnum
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from salon_compare.hooks import ClassifiedHook, HookKind
 from salon_compare.intake import VenueCandidate
@@ -70,6 +71,9 @@ class HtmlExtract(BaseModel):
     neighbor_count: int | None = None
     neighbor_avg_rating: float | None = None
     about: str | None = None
+    hours: str | None = None
+    last_review: str | None = None
+    plus_minus: str | None = None
 
 
 class PlaceRecord(BaseModel):
@@ -90,6 +94,13 @@ class PlaceRecord(BaseModel):
     kad: SourcedField
     legal_candidates: tuple[LegalOrg, ...] = ()
     unreliable: bool = False
+    hours: SourcedField = Field(default_factory=SourcedField)
+    yandex_last_review: SourcedField = Field(default_factory=SourcedField)
+    twogis_last_review: SourcedField = Field(default_factory=SourcedField)
+    yandex_reviews_90d: SourcedField = Field(default_factory=SourcedField)
+    twogis_reviews_90d: SourcedField = Field(default_factory=SourcedField)
+    yandex_plus_minus: SourcedField = Field(default_factory=SourcedField)
+    twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
 
 
 @dataclass(frozen=True)
@@ -105,6 +116,9 @@ class MapCard:
     inn: str | None = None
     lon: float | None = None
     lat: float | None = None
+    hours: str | None = None
+    last_review: str | None = None
+    plus_minus: str | None = None
 
 
 @dataclass(frozen=True)
@@ -238,6 +252,18 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
     )
 
 
+def _mark_90d(last: SourcedField, as_of: date) -> SourcedField:
+    if last.trust is Trust.MISSING or last.value is None:
+        return _missing()
+    raw = str(last.value)[:10]
+    try:
+        parsed = date.fromisoformat(raw)
+    except ValueError:
+        return _missing()
+    flag = "да" if (as_of - parsed).days <= 90 else "нет"
+    return SourcedField(value=flag, source_url=last.source_url, trust=last.trust)
+
+
 def collect_place(
     venue: VenueCandidate,
     hook: ClassifiedHook,
@@ -348,6 +374,56 @@ def collect_place(
     legal = _collect_legal(
         hook, yandex, twogis, html, deps.legal, legal_choice, deps.pacer
     )
+    as_of = date.today()
+    hours = _field(
+        yandex.hours,
+        yandex.source_url,
+        yandex.html_url,
+        lambda item: item.hours,
+        html,
+        deps.parser,
+    )
+    if hours.trust is Trust.MISSING:
+        hours = _field(
+            twogis.hours,
+            twogis.source_url,
+            twogis.html_url,
+            lambda item: item.hours,
+            html,
+            deps.parser,
+        )
+    yandex_last = _field(
+        yandex.last_review,
+        yandex.source_url,
+        yandex.html_url,
+        lambda item: item.last_review,
+        html,
+        deps.parser,
+    )
+    twogis_last = _field(
+        twogis.last_review,
+        twogis.source_url,
+        twogis.html_url,
+        lambda item: item.last_review,
+        html,
+        deps.parser,
+    )
+    yandex_pm = _field(
+        yandex.plus_minus,
+        yandex.source_url,
+        yandex.html_url,
+        lambda item: item.plus_minus,
+        html,
+        deps.parser,
+    )
+    twogis_pm = _field(
+        twogis.plus_minus,
+        twogis.source_url,
+        twogis.html_url,
+        lambda item: item.plus_minus,
+        html,
+        deps.parser,
+    )
 
     return PlaceRecord(
         venue_id=venue.venue_id,
@@ -366,6 +442,13 @@ def collect_place(
         fedresurs=legal.fedresurs,
         kad=legal.kad,
         legal_candidates=legal.candidates,
+        hours=hours,
+        yandex_last_review=yandex_last,
+        twogis_last_review=twogis_last,
+        yandex_reviews_90d=_mark_90d(yandex_last, as_of),
+        twogis_reviews_90d=_mark_90d(twogis_last, as_of),
+        yandex_plus_minus=yandex_pm,
+        twogis_plus_minus=twogis_pm,
     )
 
 

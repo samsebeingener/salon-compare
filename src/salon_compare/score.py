@@ -47,6 +47,8 @@ class PlaceScore(BaseModel):
 class _Fields(Protocol):
     yandex_rating: SourcedField
     twogis_rating: SourcedField
+    yandex_review_count: SourcedField
+    twogis_review_count: SourcedField
     egrul_registered_at: SourcedField
     fedresurs: SourcedField
     kad: SourcedField
@@ -54,7 +56,7 @@ class _Fields(Protocol):
 
 def score_place(row: _Fields, as_of: date | None = None) -> PlaceScore:
     today = as_of or date.today()
-    reputation = _reputation(row)
+    reputation = _reputation(row, today)
     stability = _stability(row, today)
     location = BlockScore(
         name="location",
@@ -119,31 +121,62 @@ def _text(field: SourcedField) -> str:
     return str(field.value).lower()
 
 
-def _reputation(row: _Fields) -> BlockScore:
+def _reputation(row: _Fields, as_of: date) -> BlockScore:
     weight = WEIGHTS["reputation"]
     yandex = _numeric(row.yandex_rating)
     twogis = _numeric(row.twogis_rating)
+    yandex_day = _review_day(row, "yandex_last_review")
+    twogis_day = _review_day(row, "twogis_last_review")
+    chosen: float | None = None
+    prefix = ""
     if yandex is not None and twogis is not None:
-        return BlockScore(
-            name="reputation",
-            weight=weight,
-            points=None,
-            reason="не ясно какой свежее",
-        )
-    rating = yandex if yandex is not None else twogis
-    if rating is None:
+        if yandex_day is None and twogis_day is None:
+            return BlockScore(
+                name="reputation",
+                weight=weight,
+                points=None,
+                reason="не ясно какой свежее",
+            )
+        if yandex_day is not None and (twogis_day is None or yandex_day >= twogis_day):
+            chosen, prefix = yandex, "yandex"
+        else:
+            chosen, prefix = twogis, "twogis"
+    elif yandex is not None:
+        chosen, prefix = yandex, "yandex"
+    elif twogis is not None:
+        chosen, prefix = twogis, "twogis"
+    if chosen is None:
         return BlockScore(
             name="reputation",
             weight=weight,
             points=None,
             reason="рейтинг карт не найден",
         )
-    if rating >= 4.0:
+    if _too_negative(row, prefix):
+        return BlockScore(
+            name="reputation",
+            weight=weight,
+            points=0,
+            reason="много минусов в разбивке",
+        )
+    fresh = _fresh_90(row, prefix, as_of)
+    count = _numeric(getattr(row, f"{prefix}_review_count", row.twogis_review_count))
+    if chosen > 4.5 and fresh and count is not None and count >= 10:
+        return BlockScore(
+            name="reputation",
+            weight=weight,
+            points=3,
+            reason="рейтинг выше 4.5 и отзывы за 90 дней",
+        )
+    if chosen >= 4.0:
+        reason = "рейтинг без даты свежести, +3 не ставим"
+        if fresh:
+            reason = "рейтинг 4.0–4.5 или мало отзывов"
         return BlockScore(
             name="reputation",
             weight=weight,
             points=2,
-            reason="рейтинг без даты свежести, +3 не ставим",
+            reason=reason,
         )
     return BlockScore(
         name="reputation",
@@ -151,6 +184,41 @@ def _reputation(row: _Fields) -> BlockScore:
         points=1,
         reason="рейтинг ниже 4.0",
     )
+
+
+def _review_day(row: _Fields, name: str) -> date | None:
+    field = getattr(row, name, None)
+    if not isinstance(field, SourcedField):
+        return None
+    if field.trust is Trust.MISSING or field.value is None:
+        return None
+    return _parse_date(str(field.value))
+
+
+def _fresh_90(row: _Fields, prefix: str, today: date) -> bool:
+    flag = getattr(row, f"{prefix}_reviews_90d", None)
+    if isinstance(flag, SourcedField) and str(flag.value).lower() == "да":
+        return True
+    day = _review_day(row, f"{prefix}_last_review")
+    if day is None:
+        return False
+    return (today - day).days <= 90
+
+
+def _too_negative(row: _Fields, prefix: str) -> bool:
+    field = getattr(row, f"{prefix}_plus_minus", None)
+    if not isinstance(field, SourcedField) or field.value is None:
+        return False
+    match = re.search(
+        r"(\d+)\s*плюс\s*/\s*(\d+)\s*минус",
+        str(field.value),
+        re.IGNORECASE,
+    )
+    if not match:
+        return False
+    plus_n = int(match.group(1))
+    minus_n = int(match.group(2))
+    return minus_n > 0 and minus_n >= plus_n
 
 
 def _stability(row: _Fields, as_of: date) -> BlockScore:

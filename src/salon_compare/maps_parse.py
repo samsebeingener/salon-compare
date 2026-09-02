@@ -186,7 +186,22 @@ def card_from_yandex(feature: dict[str, object]) -> MapCard:
         html_url = f"https://yandex.ru/maps/org/{ident}"
     url = meta.get("url")
     source = url if isinstance(url, str) and url else html_url
+    hours_block = meta.get("Hours")
+    hours: str | None = None
+    if isinstance(hours_block, dict):
+        raw_hours = hours_block.get("text")
+        if isinstance(raw_hours, str) and raw_hours.strip():
+            hours = raw_hours.strip()
     ogrn, inn = _org_ids(meta)
     return MapCard(
-        rating, count, address, source, html_url or source, None, None, ogrn, inn
+        rating,
+        count,
+        address,
+        source,
+        html_url or source,
+        None,
+        None,
+        ogrn,
+        inn,
+        hours=hours,
     )
