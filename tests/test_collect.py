@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from salon_compare.collect import (
     CollectDeps,
@@ -15,8 +16,6 @@ from salon_compare.hooks import classify_hook
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import MarkerLegalParser, egrul_url, rbc_search_url
-from urllib.parse import quote_plus
-
 from salon_compare.site_enrichment import ddg_site_search_queries, ddg_site_search_url
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -383,7 +382,10 @@ def test_blocked_twogis_finds_site_via_domain_probe() -> None:
         firm: HtmlFetchResult("blocked", "403", firm),
         site: HtmlFetchResult(
             "ok",
-            "<html><p>Таганская улица, 3</p><h2>О нас</h2><p>Студия на Таганке.</p></html>",
+            (
+                "<html><p>Таганская улица, 3</p>"
+                "<h2>О нас</h2><p>Студия на Таганке.</p></html>"
+            ),
             site,
         ),
     }

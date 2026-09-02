@@ -188,7 +188,7 @@ def site_requisites_extract(html: str, ogrn: str) -> LegalExtract | None:
     else:
         ooo_match = _REQUISITES_OOO.search(text)
         if ooo_match:
-            name = f'ООО «{ooo_match.group(1).strip()}»'
+            name = f"ООО «{ooo_match.group(1).strip()}»"
     inn = labeled_inn(html)
     parts: list[str] = []
     if name:
