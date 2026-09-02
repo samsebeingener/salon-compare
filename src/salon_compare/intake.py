@@ -23,6 +23,13 @@ class VenueCandidate:
     title: str
     source_url: str
     provider: str = "unknown"
+    address: str | None = None
+
+
+def candidate_label(item: VenueCandidate) -> str:
+    if item.address:
+        return f"{item.title} — {item.address} — {item.source_url}"
+    return f"{item.title} — {item.source_url}"
 
 
 class VenueResolver(Protocol):

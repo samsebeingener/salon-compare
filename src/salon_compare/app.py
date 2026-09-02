@@ -19,6 +19,7 @@ from salon_compare.intake import (
     IntakeStatus,
     VenueCandidate,
     apply_slot_choices,
+    candidate_label,
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
@@ -96,7 +97,7 @@ def _cell(field: SourcedField) -> str:
 def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
     for item in slot:
         if item.venue_id == venue_id:
-            return f"{item.title} — {item.source_url}"
+            return candidate_label(item)
     return venue_id
 
 
@@ -376,7 +377,7 @@ elif outcome is not None:
                 st.write("На картах ничего не нашли. Уточните зацепку.")
             elif len(slot) == 1:
                 item = slot[0]
-                st.write(f"{item.title} — {item.source_url}")
+                st.write(candidate_label(item))
             else:
                 options = [item.venue_id for item in slot]
                 picked = st.radio(
@@ -444,4 +445,4 @@ elif outcome is not None:
     else:
         for slot in outcome.candidates_by_slot:
             for candidate in slot:
-                st.write(f"{candidate.title} — {candidate.source_url}")
+                st.write(candidate_label(candidate))

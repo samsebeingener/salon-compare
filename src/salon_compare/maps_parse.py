@@ -37,6 +37,7 @@ def candidates_from_twogis_items(
                 name,
                 f"https://2gis.ru/firm/{ident}",
                 "twogis",
+                _search_address(item),
             )
         )
     return found
@@ -60,7 +61,9 @@ def candidates_from_yandex_features(
                 if isinstance(raw_name, str) and raw_name:
                     title = raw_name
         url = card.source_url or card.html_url or f"https://yandex.ru/maps/org/{ident}"
-        found.append(VenueCandidate(f"yandex:{ident}", title, url, "yandex"))
+        found.append(
+            VenueCandidate(f"yandex:{ident}", title, url, "yandex", card.address)
+        )
     return found
 
 
@@ -89,6 +92,14 @@ def candidate_from_maps_url(hook: ClassifiedHook) -> VenueCandidate | None:
         ident = org.group(1)
         return VenueCandidate(f"yandex:{ident}", ident, url, "yandex")
     return VenueCandidate(f"maps:{url}", url, url, "maps")
+
+
+def _search_address(item: dict[str, object]) -> str | None:
+    for key in ("full_address_name", "address_name"):
+        raw = item.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+    return None
 
 
 def _registry_id(raw: object, lengths: tuple[int, ...]) -> str | None:
