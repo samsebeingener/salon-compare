@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --group dev
+      - run: uv run python scripts/run_quality.py
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t "salon-compare:${GITHUB_SHA}" .
+      - name: Compose up and health
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          docker compose up -d --no-build
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8501/_stcore/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - name: Compose down
+        if: always()
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: docker compose down

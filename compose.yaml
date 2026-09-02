@@ -1,0 +1,19 @@
+services:
+  app:
+    image: salon-compare:${GIT_SHA:-local}
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      GIT_SHA: ${GIT_SHA:-local}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
