@@ -27,6 +27,33 @@ HTML_RATING_ONLY = """
 <html><div class="rating">4.6</div></html>
 """
 
+HTML_JSON_LD = """
+<html>
+<script type="application/ld+json">
+{
+  "@type": "LocalBusiness",
+  "description": "Студия у метро",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": 4.6,
+    "reviewCount": 80
+  },
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Таганская улица, 1"
+  }
+}
+</script>
+</html>
+"""
+
+HTML_ABOUT = """
+<html>
+<h2>О нас</h2>
+<p>Студия маникюра на Таганке, работаем с 2018 года.</p>
+</html>
+"""
+
 
 def _gap() -> SourcedField:
     return SourcedField()
@@ -70,6 +97,25 @@ def test_open_html_parser_skips_invented_plus_minus() -> None:
     extract = OpenHtmlParser().parse(HTML_RATING_ONLY)
     assert extract.plus_minus is None
     assert extract.last_review is None
+    assert extract.rating is None
+    assert extract.about is None
+
+
+def test_open_html_parser_reads_json_ld_about_rating_address() -> None:
+    extract = OpenHtmlParser().parse(HTML_JSON_LD)
+    assert extract.about is not None
+    assert "Студия у метро" in extract.about
+    assert extract.rating == 4.6
+    assert extract.review_count == 80
+    assert extract.address is not None
+    assert "Таганская" in extract.address
+
+
+def test_open_html_parser_about_from_heading() -> None:
+    extract = OpenHtmlParser().parse(HTML_ABOUT)
+    assert extract.about is not None
+    assert "Студия маникюра на Таганке" in extract.about
+    assert len(extract.about) <= 280
 
 
 def test_high_rating_with_reviews_in_90_days_is_plus_three() -> None:

@@ -8,6 +8,20 @@ from salon_compare.store import load_run
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_live_bootstrap_spec_has_no_yandex_key() -> None:
+    text = (ROOT / "openspec" / "specs" / "project-bootstrap" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    assert "YANDEX_MAPS_API_KEY" not in text
+
+
+def test_live_collect_spec_cascade_has_no_yandex() -> None:
+    text = (ROOT / "openspec" / "specs" / "open-data-collect" / "spec.md").read_text(
+        encoding="utf-8"
+    )
+    assert "и/или Яндекс" not in text
+
+
 def test_env_example_has_no_yandex_key() -> None:
     text = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "TWOGIS_API_KEY" in text

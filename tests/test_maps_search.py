@@ -177,6 +177,29 @@ def test_maps_link_is_single_candidate_without_search() -> None:
     assert catalog.queries == []
 
 
+def test_yandex_org_slug_searches_twogis() -> None:
+    a = VenueCandidate("twogis:a", "Вишня 1", "https://2gis.ru/firm/a", "twogis")
+    b = VenueCandidate("twogis:b", "Вишня 2", "https://2gis.ru/firm/b", "twogis")
+    catalog = FakeCatalog({"vishnya": [a, b]})
+    found = MapsSearchResolver(catalog).resolve(
+        classify_hook("https://yandex.ru/maps/org/vishnya/123")
+    )
+    assert [item.venue_id for item in found] == ["twogis:a", "twogis:b"]
+    assert [item.provider for item in found] == ["twogis", "twogis"]
+    assert "vishnya" in catalog.queries
+
+
+def test_yandex_org_digits_skip_twogis_search() -> None:
+    decoy = VenueCandidate("twogis:x", "Чужая", "https://2gis.ru/firm/x", "twogis")
+    catalog = FakeCatalog({"123456": [decoy]})
+    found = MapsSearchResolver(catalog).resolve(
+        classify_hook("https://yandex.ru/maps/org/123456")
+    )
+    assert catalog.queries == []
+    assert len(found) == 1
+    assert found[0].venue_id == "yandex:123456"
+
+
 def test_twogis_keeps_all_search_hits_and_picks_by_id() -> None:
     items: list[dict[str, object]] = [
         {"id": "aaa", "name": "Первая"},
@@ -196,6 +219,14 @@ def test_app_uses_search_resolver_and_confirmation() -> None:
     assert "st.radio" in text
     assert "apply_slot_choices" in text
     assert "candidate_label" in text
+    intake = (ROOT / "src" / "salon_compare" / "intake.py").read_text(
+        encoding="utf-8"
+    )
+    assert "PassthroughResolver" not in intake
+    collect = (ROOT / "src" / "salon_compare" / "collect.py").read_text(
+        encoding="utf-8"
+    )
+    assert "EmptyParser" not in collect
 
 
 def test_compose_forwards_map_keys() -> None:
