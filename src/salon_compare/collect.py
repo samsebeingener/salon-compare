@@ -320,14 +320,15 @@ def _collect_site(
             known = {item.rstrip("/") for item in queue}
             if key not in known:
                 queue.append(rbc_site)
-    if not queue and hook.kind in {HookKind.NAME, HookKind.MAPS_LINK}:
-        blocked = False
-        if twogis.html_url:
-            page = html.get(twogis.html_url)
-            blocked = page.status == "blocked"
-        if blocked or not twogis.html_url:
-            addr = venue_address or twogis.address
-            queue.extend(_discover_site_urls(venue_title, addr, html, pacer))
+    discover_hooks = {HookKind.NAME, HookKind.MAPS_LINK}
+    if not twogis.website and not maps_site and hook.kind in discover_hooks:
+        addr = venue_address or twogis.address
+        known = {item.rstrip("/") for item in queue}
+        for url in _discover_site_urls(venue_title, addr, html, pacer):
+            key = url.rstrip("/")
+            if key not in known:
+                queue.append(url)
+                known.add(key)
     about_value: str | None = None
     about_url: str | None = None
     pages_fetched = 0

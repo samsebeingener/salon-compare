@@ -90,7 +90,7 @@ def test_full_api_skips_html() -> None:
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.twogis_rating.trust is Trust.FOUND
     assert place.twogis_rating.value == 4.7
-    assert html.calls == ["https://2gis.example/a/html"]
+    assert html.calls[0] == "https://2gis.example/a/html"
 
 
 def test_missing_api_rating_taken_from_html() -> None:
@@ -117,7 +117,7 @@ def test_missing_api_rating_taken_from_html() -> None:
     assert place.twogis_rating.value == 4.1
     assert place.twogis_rating.source_url == twogis_html
     assert place.twogis_rating.trust is Trust.FOUND
-    assert html.calls == [twogis_html]
+    assert html.calls[0] == twogis_html
 
 
 def test_captcha_html_is_missing_not_zero() -> None:
@@ -194,7 +194,7 @@ def test_neighbors_from_api_skip_html() -> None:
     place = collect_place(_venue(), classify_hook("Вишня Таганская"), deps)
     assert place.neighbor_count.value == 5
     assert place.neighbor_vs.value == "ниже"
-    assert html.calls == ["https://2gis.example/a/html"]
+    assert html.calls[0] == "https://2gis.example/a/html"
 
 
 def test_neighbors_blocked_html_missing_not_zero() -> None:
@@ -337,6 +337,41 @@ def test_blocked_twogis_finds_site_via_ddg() -> None:
     assert place.site_about.trust is Trust.FOUND
     assert place.site_about.source_url == site
     assert "Таганке" in str(place.site_about.value)
+
+
+def test_twogis_ok_without_website_still_discovers_site() -> None:
+    firm = "https://2gis.ru/firm/1"
+    site = "https://vishnyasalon.ru"
+    html = FakeHtml(
+        {
+            firm: HtmlFetchResult("ok", "<html>карточка без сайта</html>", firm),
+            site: HtmlFetchResult(
+                "ok",
+                "<html><p>Таганская улица, 3</p>"
+                '<meta name="description" content="О нас на Таганке"></html>',
+                site,
+            ),
+        }
+    )
+    twogis = MapCard(
+        rating=4.6,
+        review_count=91,
+        address="Таганская улица, 3",
+        source_url=firm,
+        html_url=firm,
+        neighbor_count=None,
+        neighbor_avg_rating=None,
+        website=None,
+    )
+    deps = CollectDeps(
+        twogis=FakeMapApi(twogis),
+        html=html,
+        parser=OpenHtmlParser(),
+    )
+    place = collect_place(_vishnya_venue(), classify_hook("Вишня Таганская"), deps)
+    assert site in html.calls
+    assert place.site_about.trust is Trust.FOUND
+    assert place.site_about.source_url == site
 
 
 def test_blocked_twogis_stays_missing_without_ddg_hit() -> None:

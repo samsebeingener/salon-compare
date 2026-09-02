@@ -180,7 +180,7 @@ def list_runs(path: Path | None = None) -> list[tuple[int, str]]:
     return [(int(item[0]), str(item[1])) for item in found]
 
 
-COLLECT_CACHE_VERSION = "2026-09-02-ogrnip-payment-crawl"
+COLLECT_CACHE_VERSION = "2026-09-02-always-discover-site"
 
 
 def collect_cache_key(
