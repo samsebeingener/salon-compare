@@ -89,6 +89,38 @@ def test_confirming_one_card_makes_ready() -> None:
     assert confirmed.chosen_venues[1].venue_id == "twogis:b"
 
 
+def test_empty_maps_demo_trio_is_ready() -> None:
+    outcome = resolve_intake(
+        [PINK, VISHNYA, OGRN],
+        MapsSearchResolver(FakeCatalog({}), FakeCatalog({})),
+    )
+    assert outcome.status is IntakeStatus.READY
+    assert outcome.chosen_venues is not None
+    ids = [item.venue_id for item in outcome.chosen_venues]
+    assert ids[0].startswith("website:")
+    assert ids[1].startswith("name:")
+    assert ids[2].startswith("ogrn:")
+    assert len(set(ids)) == 3
+
+
+def test_empty_maps_inn_and_free_text_get_fallback() -> None:
+    inn = "7707083893"
+    blob = "длинная свободная фраза про маникюр на таганке и запись"
+    resolver = MapsSearchResolver(FakeCatalog({}), FakeCatalog({}))
+    inn_hits = resolver.resolve(classify_hook(inn))
+    text_hits = resolver.resolve(classify_hook(blob))
+    assert len(inn_hits) == 1
+    assert inn_hits[0].venue_id.startswith("inn:")
+    assert len(text_hits) == 1
+    assert text_hits[0].venue_id.startswith("text:")
+
+
+def test_readme_demo_works_without_map_keys() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert "без ключей" in text or "ключей карт не" in text
+    assert "таблиц" in text
+
+
 def test_maps_link_is_single_candidate_without_search() -> None:
     catalog = FakeCatalog({})
     hook = classify_hook("https://2gis.ru/moscow/firm/12345")
