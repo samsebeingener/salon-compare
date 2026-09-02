@@ -22,6 +22,8 @@ from salon_compare.legal import (
     fedresurs_url,
     is_ogrn,
     kad_url,
+    rbc_company_snippet,
+    rbc_search_url,
     resolve_legal_orgs,
     rusprofile_card_urls,
 )
@@ -512,6 +514,32 @@ def _official_egrul(
     return registered, status, activity
 
 
+def _rbc_egrul(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    parser: LegalParser,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField]:
+    url = rbc_search_url(org.ogrn)
+    page = html.get(url)
+    if page.status != "ok":
+        return gap, gap, gap
+    snippet = rbc_company_snippet(page.body, org.ogrn)
+    if snippet is None:
+        return gap, gap, gap
+    extract = parser.parse_egrul(snippet)
+    registered = _weak(extract.registered_at, url) if extract.registered_at else gap
+    status = _weak(extract.status, url) if extract.status else gap
+    activity = _weak(extract.activity, url) if extract.activity else gap
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        return gap, gap, gap
+    return registered, status, activity
+
+
 def _rusprofile_egrul(
     org: LegalOrg,
     html: HtmlFetcher,
@@ -573,6 +601,12 @@ def _collect_legal(
     if not is_ogrn(org.ogrn):
         return empty
     registered, status, activity = _official_egrul(org, html, parser, gap)
+    if (
+        registered.trust is Trust.MISSING
+        and status.trust is Trust.MISSING
+        and activity.trust is Trust.MISSING
+    ):
+        registered, status, activity = _rbc_egrul(org, html, parser, gap)
     if (
         registered.trust is Trust.MISSING
         and status.trust is Trust.MISSING

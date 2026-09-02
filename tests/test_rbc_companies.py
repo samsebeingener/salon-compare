@@ -28,13 +28,15 @@ RBC = "https://companies.rbc.ru/search/?query=1147746349552"
 RBC_CARD = """
 <div class="company-card info-card">
 <span class="company-status-badge company-status-badge--green">Действует</span>
-<a class="company-name-highlight" href="https://companies.rbc.ru/id/1147746349552-i-like-nails/">I LIKE NAILS</a>
+<a class="company-name-highlight"
+ href="https://companies.rbc.ru/id/1147746349552-i-like-nails/">I LIKE NAILS</a>
 <p>ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ «НОГТЕВОЙ СЕРВИС»</p>
 <div class="category-breadcrumb">
 <span class="category-breadcrumb__item">Бытовые услуги</span>
 <span class="category-breadcrumb__item">Парикмахерские и салоны красоты</span>
 </div>
-<p class="company-card__info"><span>Генеральный Директор:</span>Сулейманова Гульнара Маратовна</p>
+<p class="company-card__info"><span>Генеральный Директор:</span>
+Сулейманова Гульнара Маратовна</p>
 <p class="company-card__info"><span>Дата регистрации:</span>01.04.2014</p>
 <p class="company-card__info"><span>ОГРН:</span><em>1147746349552</em></p>
 </div>

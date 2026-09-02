@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from html import unescape
 from typing import Protocol
 from urllib.parse import quote_plus, unquote
 
@@ -77,6 +78,25 @@ def ddg_rusprofile_url(ogrn: str) -> str:
     return f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
 
 
+def rbc_search_url(ogrn: str) -> str:
+    return f"https://companies.rbc.ru/search/?query={ogrn}"
+
+
+def rbc_company_snippet(html: str, ogrn: str) -> str | None:
+    needle = "company-card info-card"
+    start = 0
+    while True:
+        idx = html.find(needle, start)
+        if idx < 0:
+            return None
+        chunk = html[idx : idx + 5000]
+        has_id = f"/id/{ogrn}-" in chunk
+        has_label = "ОГРН" in chunk or "огрн" in chunk.lower()
+        if ogrn in chunk and (has_id or has_label):
+            return chunk
+        start = idx + len(needle)
+
+
 _RUSPROFILE_ID = re.compile(
     r"(?:https?://)?(?:www\.)?rusprofile\.ru/id/(\d+)",
     re.IGNORECASE,
@@ -144,7 +164,14 @@ class MarkerLegalParser:
         elif "действующ" in lowered:
             status = "действует"
         registered = None
-        if "регистрац" in lowered:
+        reg = re.search(
+            r"дата регистрации.{0,80}?(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
+            html,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if reg:
+            registered = reg.group(1)
+        elif "регистрац" in lowered:
             found_date = _DATE.search(html)
             if found_date:
                 registered = found_date.group(1)
@@ -156,6 +183,14 @@ class MarkerLegalParser:
                 cleaned = re.sub(r"<[^>]+>", " ", snippet)
                 activity = re.sub(r"\s+", " ", cleaned).strip()[:120]
                 break
+        if activity is None:
+            crumbs = re.findall(
+                r'category-breadcrumb__item"[^>]*>([^<]+)',
+                html,
+                re.IGNORECASE,
+            )
+            if crumbs:
+                activity = unescape(crumbs[-1]).strip()[:120]
         return LegalExtract(
             registered_at=registered,
             status=status,
