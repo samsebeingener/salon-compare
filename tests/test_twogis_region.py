@@ -5,7 +5,11 @@ from typing import Any
 import httpx
 import pytest
 
-from salon_compare.maps_http import MOSCOW_REGION_ID, TwoGisApi, twogis_items_search_params
+from salon_compare.maps_http import (
+    MOSCOW_REGION_ID,
+    TwoGisApi,
+    twogis_items_search_params,
+)
 
 
 def test_twogis_search_params_include_moscow_region() -> None:
