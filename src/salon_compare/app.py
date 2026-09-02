@@ -1,6 +1,7 @@
 """Три зацепки, подтверждение карточек со ссылками, таблица полей."""
 
 from collections.abc import Callable
+from typing import cast
 
 import streamlit as st
 
@@ -23,10 +24,32 @@ from salon_compare.intake import (
 from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver
+from salon_compare.store import (
+    collect_cache_key,
+    list_runs,
+    load_run,
+    rows_from_cache,
+    save_run,
+)
 
 st.set_page_config(page_title="salon-compare", layout="centered")
 st.title("salon-compare")
 st.write("Введите три зацепки — по одной на точку.")
+
+_saved = list_runs()
+if _saved:
+    _ids = [item[0] for item in _saved]
+    _labels = {item[0]: f"#{item[0]} · {item[1]}" for item in _saved}
+    _picked = st.selectbox(
+        "Сохранённые разборы",
+        _ids,
+        format_func=lambda run_id: _labels[int(run_id)],
+    )
+    if st.button("Открыть сохранённый"):
+        loaded = load_run(int(_picked))
+        if loaded:
+            st.session_state["saved_rows"] = loaded
+            st.session_state.pop("outcome", None)
 
 hook_one = st.text_input("Зацепка 1")
 hook_two = st.text_input("Зацепка 2")
@@ -125,6 +148,7 @@ def _show_table(rows: list[PlaceRecord]) -> None:
 
 
 if st.button("Разобрать зацепки"):
+    st.session_state.pop("saved_rows", None)
     st.session_state["outcome"] = resolve_intake(
         [hook_one, hook_two, hook_three],
         _resolver(),
@@ -132,7 +156,11 @@ if st.button("Разобрать зацепки"):
     st.session_state["legal_choices"] = {}
 
 outcome = st.session_state.get("outcome")
-if outcome is not None:
+saved_rows = st.session_state.get("saved_rows")
+if saved_rows:
+    st.write("Сохранённый разбор, нового поиска нет.")
+    _show_table(saved_rows)
+elif outcome is not None:
     st.write(outcome.message)
     for index, hook in enumerate(outcome.classified, start=1):
         st.write(f"{index}. {hook.kind.value}: {hook.raw.strip()}")
@@ -160,19 +188,35 @@ if outcome is not None:
             st.rerun()
     elif outcome.status is IntakeStatus.READY and outcome.chosen_venues:
         legal_choices: dict[str, str] = st.session_state.setdefault("legal_choices", {})
-        rows = collect_three(
-            outcome.chosen_venues,
-            outcome.classified,
-            CollectDeps(
-                yandex=map_api_from_env("yandex"),
-                twogis=map_api_from_env("twogis"),
-                html=HttpxHtmlFetcher(),
-                parser=EmptyParser(),
-                legal=MarkerLegalParser(),
-                pacer=SleepPacer(3.0),
-            ),
-            legal_choices=legal_choices,
+        cache = cast(
+            dict[object, list[PlaceRecord]],
+            st.session_state.setdefault("row_cache", {}),
         )
+        venues = outcome.chosen_venues
+        classified = outcome.classified
+        key = collect_cache_key(
+            [venue.venue_id for venue in venues],
+            legal_choices,
+        )
+
+        def _collect() -> list[PlaceRecord]:
+            return collect_three(
+                venues,
+                classified,
+                CollectDeps(
+                    yandex=map_api_from_env("yandex"),
+                    twogis=map_api_from_env("twogis"),
+                    html=HttpxHtmlFetcher(),
+                    parser=EmptyParser(),
+                    legal=MarkerLegalParser(),
+                    pacer=SleepPacer(3.0),
+                ),
+                legal_choices=legal_choices,
+            )
+
+        rows, wrote = rows_from_cache(cache, key, _collect)
+        if wrote:
+            save_run(rows)
         pending = [row for row in rows if row.legal_candidates]
         if pending:
             st.write("Несколько юрлиц. Выберите запись по ссылке. Сами не выбираем.")

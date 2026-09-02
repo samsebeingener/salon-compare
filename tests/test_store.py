@@ -44,9 +44,7 @@ def _row() -> PlaceRecord:
         egrul_activity=_gap(),
         fedresurs=_gap(),
         kad=_gap(),
-        legal_candidates=(
-            LegalOrg("1147746349552", "ООО", "https://egrul.example/1"),
-        ),
+        legal_candidates=(LegalOrg("1147746349552", "ООО", "https://egrul.example/1"),),
     )
 
 
