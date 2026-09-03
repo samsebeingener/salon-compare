@@ -26,6 +26,7 @@ from salon_compare.intake import (
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.llm import LlmUsage, NullLlm, estimate_usd, make_llm
+from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
@@ -284,6 +285,7 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
             st.write(f"вывод модели не разобран ({error})")
         else:
             st.write("вывод модели не разобран")
+        st.caption(f"лог LLM: {log_path()}")
         return
     st.write(f"Интереснее: {verdict.interesting}")
     st.write(f"Чем лучше: {verdict.why_better}")

@@ -8,7 +8,8 @@ from typing import Protocol
 import httpx
 from pydantic import BaseModel
 
-from salon_compare.proxy import httpx_client_kwargs
+from salon_compare.llm_log import log_llm_event
+from salon_compare.proxy import llm_httpx_client_kwargs
 
 _TIMEOUT = 30.0
 _DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
@@ -138,6 +139,16 @@ class OpenAiCompatLlm:
         self._last_error = None
         url = f"{self.base_url}/chat/completions"
         system_text = system if system else _DEFAULT_SYSTEM
+        log_llm_event(
+            "request",
+            api_key=self.api_key,
+            base_url=self.base_url,
+            model=self.model,
+            url=url,
+            llm_direct=os.environ.get("LLM_DIRECT", ""),
+            system=system_text,
+            user_prompt=prompt,
+        )
         try:
             response = httpx.post(
                 url,
@@ -153,11 +164,17 @@ class OpenAiCompatLlm:
                     ],
                 },
                 timeout=_TIMEOUT,
-                **httpx_client_kwargs(),
+                **llm_httpx_client_kwargs(),
             )
         except httpx.HTTPError as exc:
             self._usage = LlmUsage()
             self._last_error = f"сеть: {exc.__class__.__name__}"
+            log_llm_event(
+                "error",
+                model=self.model,
+                error=self._last_error,
+                detail=str(exc),
+            )
             return ""
         if response.status_code >= 400:
             self._usage = LlmUsage()
@@ -165,22 +182,49 @@ class OpenAiCompatLlm:
             if len(body) > 120:
                 body = body[:117] + "..."
             self._last_error = f"HTTP {response.status_code}: {body or 'пустой ответ'}"
+            log_llm_event(
+                "error",
+                model=self.model,
+                status_code=response.status_code,
+                error=self._last_error,
+                response_text=response.text,
+            )
             return ""
         try:
             data = response.json()
         except ValueError:
             self._usage = LlmUsage()
             self._last_error = "ответ API не JSON"
+            log_llm_event(
+                "error",
+                model=self.model,
+                error=self._last_error,
+                response_text=response.text,
+            )
             return ""
         self._usage = usage_from_response(data)
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             self._last_error = "в ответе API нет choices[0].message.content"
+            log_llm_event(
+                "error",
+                model=self.model,
+                error=self._last_error,
+                response_json=data,
+            )
             return ""
         if not isinstance(content, str):
             self._last_error = "content ответа не строка"
+            log_llm_event("error", model=self.model, error=self._last_error)
             return ""
+        log_llm_event(
+            "response",
+            model=self.model,
+            status_code=response.status_code,
+            usage=self._usage.model_dump(),
+            response_text=content,
+        )
         return content
 
 
@@ -189,5 +233,13 @@ def make_llm() -> LlmClient:
     base = os.environ.get("LLM_BASE_URL", "").strip()
     model = os.environ.get("LLM_MODEL", "").strip()
     if not key or not base or not model:
+        log_llm_event(
+            "skipped",
+            reason="missing LLM_API_KEY, LLM_BASE_URL or LLM_MODEL",
+            has_key=bool(key),
+            has_base=bool(base),
+            has_model=bool(model),
+        )
         return NullLlm()
+    log_llm_event("client_ready", base_url=base, model=model, api_key=key)
     return OpenAiCompatLlm(key, base, model)
