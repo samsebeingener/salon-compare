@@ -617,11 +617,13 @@ def test_twogis_hours_district_metro_fill_place() -> None:
 
 def test_app_shows_fields_table_without_score_index() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
+    labels = (ROOT / "src" / "salon_compare" / "report.py").read_text(encoding="utf-8")
     lowered = text.lower()
     assert "collect_three" in text or "collect_place" in text
     assert "не найдено" in lowered
     assert "покупай" not in lowered
-    assert "Район" in text
-    assert "Метро" in text
+    assert "Район" in labels
+    assert "Метро" in labels
+    assert "Индекс 50/25/25" in text
     assert "Яндекс рейтинг" not in text
     assert '"Рейтинг соседей"' not in text

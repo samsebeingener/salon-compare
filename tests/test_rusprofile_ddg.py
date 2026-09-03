@@ -245,8 +245,9 @@ def test_rusprofile_html_does_not_copy_founder_names() -> None:
 
 
 def test_app_shows_weak_label() -> None:
-    text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
-    assert "слабо" in text
+    app = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
+    report = (ROOT / "src" / "salon_compare" / "report.py").read_text(encoding="utf-8")
+    assert "слабо" in app + report
 
 
 def test_readme_mentions_ddg_rusprofile_pause() -> None:

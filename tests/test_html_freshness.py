@@ -5,7 +5,13 @@ import pytest
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
 from salon_compare.html_parse import OpenHtmlParser
-from salon_compare.llm import LlmUsage, estimate_usd, usage_from_response
+from salon_compare.llm import (
+    LlmUsage,
+    estimate_usd,
+    estimated_usd_parts,
+    format_usd_sum_line,
+    usage_from_response,
+)
 from salon_compare.score import score_place
 from salon_compare.store import load_run, load_run_usage, save_run, save_run_usage
 
@@ -144,7 +150,27 @@ def test_high_rating_is_plus_three_without_review_dates() -> None:
     assert rep.points == 3
 
 
-def test_usage_tokens_without_rate_have_no_usd() -> None:
+def test_env_rates_accept_comma_decimal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_USD_PER_1M_PROMPT", "0,15")
+    monkeypatch.setenv("LLM_USD_PER_1M_COMPLETION", "0,90")
+    usage = usage_from_response(
+        {"usage": {"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}}
+    )
+    assert estimate_usd(usage) == 1.05
+    parts = estimated_usd_parts(usage)
+    assert parts is not None
+    assert format_usd_sum_line(*parts) == "0,15000+0,90000=1,05000$"
+
+
+def test_format_usd_sum_line_matches_user_layout() -> None:
+    assert format_usd_sum_line(0.00023, 0.00050) == "0,00023+0,00050=0,00073$"
+
+
+def test_usage_tokens_without_rate_have_no_usd(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LLM_USD_PER_1M_PROMPT", raising=False)
+    monkeypatch.delenv("LLM_USD_PER_1M_COMPLETION", raising=False)
     usage = usage_from_response(
         {"usage": {"prompt_tokens": 100, "completion_tokens": 50}}
     )

@@ -4,11 +4,15 @@ from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
 from salon_compare.legal import LegalOrg
+from salon_compare.llm import LlmUsage
 from salon_compare.store import (
     collect_cache_key,
     load_run,
+    load_run_usage,
     rows_from_cache,
     save_run,
+    save_run_usage,
+    update_run,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +65,32 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     assert path.is_file()
 
 
+def test_update_run_keeps_id_and_usage(tmp_path: Path) -> None:
+    path = tmp_path / "salon-compare.sqlite"
+    run_id = save_run([_row()], path)
+    save_run_usage(
+        run_id,
+        LlmUsage(prompt_tokens=1, completion_tokens=2, total_tokens=3, cost=0.1),
+        path,
+    )
+    patched = _row().model_copy(
+        update={
+            "twogis_rating": SourcedField(
+                value=4.8,
+                source_url="правка человека",
+                trust=Trust.WEAK,
+            )
+        }
+    )
+    update_run(run_id, [patched], path)
+    loaded = load_run(run_id, path)
+    assert loaded is not None
+    assert loaded[0].twogis_rating.value == 4.8
+    usage = load_run_usage(run_id, path)
+    assert usage is not None
+    assert usage.total_tokens == 3
+
+
 def test_load_does_not_need_html(tmp_path: Path) -> None:
     path = tmp_path / "db.sqlite"
     run_id = save_run([_row()], path)
@@ -92,6 +122,7 @@ def test_app_opens_saved_without_new_search() -> None:
     assert "сохранённый" in lowered or "сохраненный" in lowered
     assert "нового поиска нет" in lowered
     assert "save_run" in text
+    assert "update_run" in text
     assert "collected_rows" in text or "rows_from_cache" in text
     assert "покупай" not in lowered
 

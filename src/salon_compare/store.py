@@ -32,11 +32,7 @@ def _connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-def _dump_rows(rows: Sequence[PlaceRecord], usage: LlmUsage | None = None) -> str:
-    payload: dict[str, object] = {
-        "rows": [],
-        "usage": usage.model_dump() if usage is not None else None,
-    }
+def _pack_rows(rows: Sequence[PlaceRecord]) -> list[dict[str, object]]:
     packed: list[dict[str, object]] = []
     for row in rows:
         data = row.model_dump(mode="json")
@@ -45,7 +41,14 @@ def _dump_rows(rows: Sequence[PlaceRecord], usage: LlmUsage | None = None) -> st
             for item in row.legal_candidates
         ]
         packed.append(data)
-    payload["rows"] = packed
+    return packed
+
+
+def _dump_rows(rows: Sequence[PlaceRecord], usage: LlmUsage | None = None) -> str:
+    payload: dict[str, object] = {
+        "rows": _pack_rows(rows),
+        "usage": usage.model_dump() if usage is not None else None,
+    }
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -144,6 +147,33 @@ def load_run_usage(run_id: int, path: Path | None = None) -> LlmUsage | None:
         if parsed.total_tokens is None and parsed.cost is None:
             return None
     return parsed
+
+
+def update_run(
+    run_id: int,
+    rows: Sequence[PlaceRecord],
+    path: Path | None = None,
+) -> None:
+    db = path or default_db_path()
+    if not db.is_file():
+        return
+    with _connect(db) as conn:
+        found = conn.execute(
+            "SELECT payload FROM runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        if found is None:
+            return
+        try:
+            _old, usage = _row_dicts(str(found[0]))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            usage = None
+        payload = {"rows": _pack_rows(rows), "usage": usage}
+        conn.execute(
+            "UPDATE runs SET payload = ? WHERE id = ?",
+            (json.dumps(payload, ensure_ascii=False), run_id),
+        )
+        conn.commit()
 
 
 def save_run_usage(run_id: int, usage: LlmUsage, path: Path | None = None) -> None:

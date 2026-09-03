@@ -307,9 +307,10 @@ def test_courts_are_not_requested() -> None:
 
 def test_app_asks_legal_confirm_and_shows_registry_rows() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
+    labels = (ROOT / "src" / "salon_compare" / "report.py").read_text(encoding="utf-8")
     assert "legal_candidates" in text
     assert "Подтвердить юрлицо" in text
-    assert "ЕГРЮЛ" in text
+    assert "ЕГРЮЛ" in labels
     assert "Федресурс" not in text
     assert "КАД" not in text
     assert "покупай" not in text.lower()
