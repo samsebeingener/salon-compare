@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from salon_compare.collect import PlaceRecord
+from salon_compare.collect import PlaceRecord, coerce_place_record
 from salon_compare.legal import LegalOrg
 from salon_compare.llm import LlmUsage
 from salon_compare.report import ModelVerdict
@@ -347,7 +347,11 @@ def rows_from_cache(
 ) -> tuple[list[PlaceRecord], bool]:
     cached = cache.get(key)
     if cached is not None:
-        return cached, False
+        upgraded = [
+            item for row in cached if (item := coerce_place_record(row)) is not None
+        ]
+        cache[key] = upgraded
+        return upgraded, False
     rows = factory()
     cache[key] = rows
     return rows, True

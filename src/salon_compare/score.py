@@ -8,7 +8,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from salon_compare.collect import SourcedField, Trust
+from salon_compare.collect import SourcedField, Trust, as_sourced_field
 
 _DOT_DATE = re.compile(r"(\d{2})\.(\d{2})\.(\d{4})")
 _ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
@@ -90,18 +90,20 @@ def score_place(row: _Fields, as_of: date | None = None) -> PlaceScore:
     return PlaceScore(index=round(total, 1), note=note, blocks=blocks)
 
 
-def _numeric(field: SourcedField) -> float | None:
-    if field.trust is Trust.MISSING or field.value is None:
+def _numeric(field: object) -> float | None:
+    sourced = as_sourced_field(field)
+    if sourced is None or sourced.trust == Trust.MISSING or sourced.value is None:
         return None
-    if isinstance(field.value, int | float) and not isinstance(field.value, bool):
-        return float(field.value)
+    if isinstance(sourced.value, int | float) and not isinstance(sourced.value, bool):
+        return float(sourced.value)
     return None
 
 
-def _text(field: SourcedField) -> str:
-    if field.trust is Trust.MISSING or field.value is None:
+def _text(field: object) -> str:
+    sourced = as_sourced_field(field)
+    if sourced is None or sourced.trust == Trust.MISSING or sourced.value is None:
         return ""
-    return str(field.value).lower()
+    return str(sourced.value).lower()
 
 
 def _reputation(row: _Fields) -> BlockScore:
@@ -170,10 +172,11 @@ def _stability(row: _Fields, as_of: date) -> BlockScore:
     )
 
 
-def _age_points(field: SourcedField, as_of: date) -> int | None:
-    if field.trust is Trust.MISSING or field.value is None:
+def _age_points(field: object, as_of: date) -> int | None:
+    sourced = as_sourced_field(field)
+    if sourced is None or sourced.trust == Trust.MISSING or sourced.value is None:
         return None
-    registered = _parse_date(str(field.value))
+    registered = _parse_date(str(sourced.value))
     if registered is None:
         return None
     years = (as_of - registered).days / 365.25
@@ -210,12 +213,12 @@ def _location(row: _Fields) -> BlockScore:
 
 
 def _metro_points(row: _Fields) -> int | None:
-    field = getattr(row, "metro", None)
-    if not isinstance(field, SourcedField):
+    sourced = as_sourced_field(getattr(row, "metro", None))
+    if sourced is None:
         return None
-    if field.trust is Trust.MISSING or field.value is None:
+    if sourced.trust == Trust.MISSING or sourced.value is None:
         return None
-    raw = str(field.value)
+    raw = str(sourced.value)
     match = _METRO_METERS.search(raw)
     if match is None:
         return 1
@@ -228,12 +231,12 @@ def _metro_points(row: _Fields) -> int | None:
 
 
 def _neighbor_vs_points(row: _Fields) -> int | None:
-    field = getattr(row, "neighbor_vs", None)
-    if not isinstance(field, SourcedField):
+    sourced = as_sourced_field(getattr(row, "neighbor_vs", None))
+    if sourced is None:
         return None
-    if field.trust is Trust.MISSING or field.value is None:
+    if sourced.trust == Trust.MISSING or sourced.value is None:
         return None
-    value = str(field.value).casefold()
+    value = str(sourced.value).casefold()
     if value == "ниже":
         return 1
     if value == "выше":

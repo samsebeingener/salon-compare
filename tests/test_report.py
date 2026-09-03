@@ -246,6 +246,26 @@ def test_table_cell_uses_shared_footnotes() -> None:
     assert table_cell(pending, "egrul_status", legal_notes) == "уточните юрлицо [1][2]"
 
 
+def test_table_cell_reads_field_from_dump() -> None:
+    row = _place(twogis_rating=_found(4.7, "https://2gis.ru/firm/1"))
+    dumped = row.model_dump()
+    dumped["twogis_rating"] = {
+        "value": 4.7,
+        "source_url": "https://2gis.ru/firm/1",
+        "trust": "found",
+    }
+    alien = PlaceRecord.model_validate(dumped)
+    notes = footnote_map([alien])
+    assert table_cell(alien, "twogis_rating", notes).startswith("4.7")
+
+
+def test_footnote_map_tolerates_row_without_efrsb() -> None:
+    from types import SimpleNamespace
+
+    row = SimpleNamespace(legal_candidates=())
+    assert footnote_map([row]) == {}  # type: ignore[list-item]
+
+
 def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
@@ -262,5 +282,8 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert "footnote_map" in text
     assert "Источники" in text
     assert "importlib.reload" in text
+    assert "reload(proxy)" in text
     assert "reload(llm)" in text
+    assert "as_sourced_field" in text
+    assert "reload(intake)" not in text
     assert "cell_help" in text

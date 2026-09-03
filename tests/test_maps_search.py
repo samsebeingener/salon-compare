@@ -41,6 +41,8 @@ class FakeBrandNames:
 def test_search_query_uses_domain_and_digits() -> None:
     assert search_query(classify_hook(PINK)) == "pinklemon-nails.ru"
     assert search_query(classify_hook(OGRN)) == OGRN
+    assert search_query(classify_hook("319774600285920")) == "319774600285920"
+    assert search_query(classify_hook("750101059837")) == "750101059837"
     assert search_query(classify_hook(VISHNYA)) == VISHNYA
 
 
@@ -197,7 +199,19 @@ def test_ogrnip_empty_maps_uses_rbc_person_title() -> None:
         FakeBrandNames({ogrnip: [name, "Гловский Игорь Дмитриевич"]}),
     ).resolve(classify_hook(ogrnip))
     assert len(found) == 1
-    assert found[0].venue_id.startswith("ogrn:")
+    assert found[0].venue_id.startswith("ogrnip:")
+    assert found[0].title == name
+
+
+def test_inn_empty_maps_uses_rbc_title() -> None:
+    inn = "750101059837"
+    name = "ИП Гловский Игорь Дмитриевич"
+    found = MapsSearchResolver(
+        FakeCatalog({}),
+        FakeBrandNames({inn: [name]}),
+    ).resolve(classify_hook(inn))
+    assert len(found) == 1
+    assert found[0].venue_id.startswith("inn:")
     assert found[0].title == name
 
 

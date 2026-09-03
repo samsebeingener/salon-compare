@@ -22,7 +22,7 @@ from salon_compare.checko import (
     checko_registered_at,
     checko_status,
 )
-from salon_compare.hooks import ClassifiedHook, HookKind
+from salon_compare.hooks import REGISTRY_KINDS, ClassifiedHook, HookKind
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import (
     EmptyLegalParser,
@@ -88,6 +88,34 @@ class SourcedField(BaseModel):
     trust: Trust = Trust.MISSING
 
 
+def as_sourced_field(field: object) -> SourcedField | None:
+    """Поле после reload(collect): класс SourcedField уже другой."""
+    if field is None:
+        return None
+    dump = getattr(field, "model_dump", None)
+    if callable(dump):
+        try:
+            return SourcedField.model_validate(dump())
+        except (TypeError, ValueError):
+            return None
+    if isinstance(field, dict):
+        return SourcedField.model_validate(field)
+    if not hasattr(field, "value"):
+        return None
+    raw_trust = getattr(field, "trust", None)
+    token = getattr(raw_trust, "value", raw_trust)
+    try:
+        trust = Trust(str(token)) if token is not None else Trust.MISSING
+    except ValueError:
+        trust = Trust.MISSING
+    url = getattr(field, "source_url", None)
+    return SourcedField(
+        value=getattr(field, "value", None),
+        source_url=str(url) if url else None,
+        trust=trust,
+    )
+
+
 class HtmlExtract(BaseModel):
     rating: float | None = None
     review_count: int | None = None
@@ -126,6 +154,18 @@ class PlaceRecord(BaseModel):
     district: SourcedField = Field(default_factory=SourcedField)
     metro: SourcedField = Field(default_factory=SourcedField)
     efrsb: SourcedField = Field(default_factory=SourcedField)
+
+
+def coerce_place_record(row: object) -> PlaceRecord | None:
+    """Старые JSON/сессии без efrsb и смена класса после reload."""
+    if isinstance(row, PlaceRecord):
+        return PlaceRecord.model_validate(row.model_dump())
+    dump = getattr(row, "model_dump", None)
+    if callable(dump):
+        return PlaceRecord.model_validate(dump())
+    if isinstance(row, dict):
+        return PlaceRecord.model_validate(row)
+    return None
 
 
 @dataclass(frozen=True)
@@ -322,7 +362,7 @@ def _collect_site(
         key = maps_site.rstrip("/")
         if key not in {item.rstrip("/") for item in queue}:
             queue.append(maps_site)
-    if hook.kind is HookKind.OGRN:
+    if hook.kind in REGISTRY_KINDS:
         rbc_site = _website_from_rbc(hook.normalized, html, pacer)
         if rbc_site:
             key = rbc_site.rstrip("/")
@@ -767,6 +807,16 @@ def _collect_legal(
     if len(orgs) > 1:
         return _LegalBundle(tuple(orgs), gap, gap, gap, gap, gap, gap, gap)
     if len(orgs) != 1:
+        if hook.kind is HookKind.INN and len(hook.normalized) == 12:
+            return _checko_fill(
+                LegalOrg("", hook.normalized, checko_card_url("", hook.normalized)),
+                html,
+                hook.normalized,
+                gap,
+                gap,
+                gap,
+                gap,
+            )
         return empty
     org = orgs[0]
     if not is_ogrn(org.ogrn):
@@ -798,7 +848,7 @@ def _collect_legal(
     return _checko_fill(
         org,
         html,
-        extra_inn or twogis.inn,
+        hook.normalized if hook.kind is HookKind.INN else extra_inn or twogis.inn,
         registered,
         status,
         activity,
@@ -821,7 +871,8 @@ def _checko_fill(
 ) -> _LegalBundle:
     url = checko_card_url(org.ogrn, inn)
     page = html.get(url)
-    if page.status != "ok" or not checko_page_matches(page.body, org.ogrn):
+    needle = org.ogrn or inn or ""
+    if page.status != "ok" or not needle or not checko_page_matches(page.body, needle):
         return _LegalBundle((), registered, status, activity, gap, gap, gap, gap)
     body = page.body
     if registered.trust is Trust.MISSING:

@@ -9,7 +9,7 @@ from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from salon_compare.collect import PlaceRecord, SourcedField, Trust
+from salon_compare.collect import PlaceRecord, SourcedField, Trust, as_sourced_field
 from salon_compare.llm import LlmClient
 from salon_compare.score import MAX_POINTS, PlaceScore, score_place
 
@@ -164,9 +164,9 @@ def _strip_json_fence(text: str) -> str:
 
 
 def _field_text(field: SourcedField) -> str:
-    if field.trust is Trust.MISSING or field.value is None:
+    if field.trust == Trust.MISSING or field.value is None:
         return "не найдено"
-    if field.trust is Trust.WEAK:
+    if field.trust == Trust.WEAK:
         return f"{field.value} · слабо"
     return str(field.value)
 
@@ -187,8 +187,8 @@ def field_sources(row: PlaceRecord, name: str) -> tuple[str, ...]:
         return tuple(
             item.source_url for item in row.legal_candidates if item.source_url
         )
-    field = getattr(row, name)
-    if isinstance(field, SourcedField) and field.source_url:
+    field = as_sourced_field(getattr(row, name, None))
+    if field is not None and field.source_url:
         return (field.source_url,)
     return ()
 
@@ -219,13 +219,13 @@ def table_cell(row: PlaceRecord, name: str, mapping: dict[str, int]) -> str:
     marks = footnote_marks(sources, mapping)
     if name.startswith("egrul_") and row.legal_candidates:
         return f"уточните юрлицо {marks}".rstrip()
-    field = getattr(row, name)
-    if not isinstance(field, SourcedField):
+    field = as_sourced_field(getattr(row, name, None))
+    if field is None:
         return "не найдено"
-    if field.trust is Trust.MISSING or field.value is None:
+    if field.trust == Trust.MISSING or field.value is None:
         return "не найдено"
     body = display_value(name, field.value)
-    if field.trust is Trust.WEAK:
+    if field.trust == Trust.WEAK:
         body = f"{body} · слабо"
     if marks:
         return f"{body} {marks}"
@@ -237,12 +237,8 @@ def footnote_lines(mapping: dict[str, int]) -> list[tuple[int, str]]:
 
 
 def cell_help(row: PlaceRecord, name: str) -> str:
-    field = getattr(row, name)
-    if (
-        name == "site_about"
-        and isinstance(field, SourcedField)
-        and field.value is not None
-    ):
+    field = as_sourced_field(getattr(row, name, None))
+    if name == "site_about" and field is not None and field.value is not None:
         return collapse_text(field.value)
     return "Править значение"
 
@@ -251,10 +247,10 @@ def card_payload(row: PlaceRecord, score: PlaceScore) -> CardView:
     fields: list[FieldView] = []
     missing: list[str] = []
     for name, label in FIELD_LABELS:
-        field = getattr(row, name)
-        if not isinstance(field, SourcedField):
+        field = as_sourced_field(getattr(row, name, None))
+        if field is None:
             continue
-        if field.trust is Trust.MISSING or field.value is None:
+        if field.trust == Trust.MISSING or field.value is None:
             missing.append(label)
         fields.append(
             {
@@ -307,7 +303,7 @@ def mark_unreliable(row: PlaceRecord) -> PlaceRecord:
 
 
 def _evidence_entry(name: str, label: str, field: SourcedField) -> dict[str, object]:
-    missing = field.trust is Trust.MISSING or field.value is None
+    missing = field.trust == Trust.MISSING or field.value is None
     return {
         "label": label,
         "value": None if missing else field.value,
@@ -321,11 +317,11 @@ def _venue_dossier(row: PlaceRecord, as_of: date | None) -> dict[str, object]:
     evidence: dict[str, object] = {}
     missing_fields: list[str] = []
     for name, label in EVIDENCE_FIELD_LABELS:
-        field = getattr(row, name)
-        if not isinstance(field, SourcedField):
+        field = as_sourced_field(getattr(row, name, None))
+        if field is None:
             continue
         evidence[name] = _evidence_entry(name, label, field)
-        if field.trust is Trust.MISSING or field.value is None:
+        if field.trust == Trust.MISSING or field.value is None:
             missing_fields.append(name)
     score_blocks = [
         {

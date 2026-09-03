@@ -6,17 +6,11 @@ from typing import cast
 
 import streamlit as st
 
+import salon_compare.collect as collect
 import salon_compare.intake as intake
 import salon_compare.llm as llm
-import salon_compare.report as report
-import salon_compare.store as store
-from salon_compare.collect import (
-    CollectDeps,
-    PlaceRecord,
-    SleepPacer,
-    SourcedField,
-    collect_three,
-)
+import salon_compare.proxy as proxy
+from salon_compare.hooks import HOOK_KIND_LABELS
 from salon_compare.html_fetch import HttpxHtmlFetcher
 from salon_compare.html_parse import OpenHtmlParser
 from salon_compare.legal import LegalOrg, MarkerLegalParser
@@ -24,12 +18,29 @@ from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
-from salon_compare.score import score_place
 
+collect = (
+    importlib.reload(collect) if not hasattr(collect, "as_sourced_field") else collect
+)
+store = importlib.import_module("salon_compare.store")
+score_mod = importlib.import_module("salon_compare.score")
+report = importlib.import_module("salon_compare.report")
+if not hasattr(store, "coerce_place_record"):
+    store = importlib.reload(store)
+if not hasattr(score_mod, "as_sourced_field"):
+    score_mod = importlib.reload(score_mod)
+if not hasattr(report, "as_sourced_field"):
+    report = importlib.reload(report)
+score = score_mod
+proxy = importlib.reload(proxy)
 llm = importlib.reload(llm)
-report = importlib.reload(report)
-store = importlib.reload(store)
-intake = importlib.reload(intake)
+CollectDeps = collect.CollectDeps
+PlaceRecord = collect.PlaceRecord
+SleepPacer = collect.SleepPacer
+coerce_place_record = collect.coerce_place_record
+collect_three = collect.collect_three
+as_sourced_field = collect.as_sourced_field
+score_place = score.score_place
 MISSING_VENUE_ID = intake.MISSING_VENUE_ID
 MISSING_VENUE_LABEL = intake.MISSING_VENUE_LABEL
 IntakeStatus = intake.IntakeStatus
@@ -171,13 +182,13 @@ def _edit_dialog(venue_index: int, field_name: str) -> None:
     if not isinstance(current, list) or venue_index >= len(current):
         st.write("строка не найдена")
         return
-    row = current[venue_index]
-    if not isinstance(row, PlaceRecord) or field_name not in EDITABLE_FIELDS:
+    row = coerce_place_record(current[venue_index])
+    if row is None or field_name not in EDITABLE_FIELDS:
         st.write("поле не найдено")
         return
     labels = dict(FIELD_LABELS)
-    field = getattr(row, field_name)
-    if not isinstance(field, SourcedField) or field.value is None:
+    field = as_sourced_field(getattr(row, field_name, None))
+    if field is None or field.value is None:
         shown = ""
     else:
         shown = str(field.value)
@@ -240,10 +251,15 @@ def _working_rows(rows: list[PlaceRecord], key: object) -> list[PlaceRecord]:
     if not isinstance(current, list) or not current:
         st.session_state["working_rows"] = list(rows)
         return list(rows)
-    typed = [item for item in current if isinstance(item, PlaceRecord)]
+    typed = [
+        coerced
+        for item in current
+        if (coerced := coerce_place_record(item)) is not None
+    ]
     if not typed:
         st.session_state["working_rows"] = list(rows)
         return list(rows)
+    st.session_state["working_rows"] = typed
     return typed
 
 
@@ -352,7 +368,7 @@ def _show_report(rows: list[PlaceRecord]) -> None:
     _show_usage()
 
 
-if st.button("Разобрать зацепки"):
+if st.button("Разобрать зацепки", key="parse-hooks"):
     st.session_state.pop("saved_rows", None)
     st.session_state.pop("working_rows", None)
     st.session_state.pop("working_key", None)
@@ -363,16 +379,21 @@ if st.button("Разобрать зацепки"):
     st.session_state.pop("llm_kind", None)
     st.session_state.pop("llm_error", None)
     st.session_state.pop("run_id", None)
-    st.session_state["outcome"] = resolve_intake(
-        [hook_one, hook_two, hook_three],
-        _resolver(),
-    )
+    with st.spinner("Уточняем данные ..."):
+        st.session_state["outcome"] = resolve_intake(
+            [hook_one, hook_two, hook_three],
+            _resolver(),
+        )
     st.session_state["legal_choices"] = {}
 
 outcome = st.session_state.get("outcome")
 saved_raw = st.session_state.get("saved_rows")
 saved_rows = (
-    [item for item in saved_raw if isinstance(item, PlaceRecord)]
+    [
+        coerced
+        for item in saved_raw
+        if (coerced := coerce_place_record(item)) is not None
+    ]
     if isinstance(saved_raw, list)
     else []
 )
@@ -386,8 +407,11 @@ if saved_rows:
 elif outcome is not None:
     st.write(outcome.message)
     for index, hook in enumerate(outcome.classified, start=1):
-        st.write(f"{index}. {hook.kind.value}: {hook.raw.strip()}")
-    if outcome.status is IntakeStatus.NEED_DISAMBIGUATION:
+        st.write(
+            f"{index}. {HOOK_KIND_LABELS.get(hook.kind, hook.kind.value)}: "
+            f"{hook.raw.strip()}"
+        )
+    if outcome.status == IntakeStatus.NEED_DISAMBIGUATION:
         choices: dict[int, str] = {}
         for index, slot in enumerate(outcome.candidates_by_slot):
             st.markdown(f"Зацепка {index + 1}")
@@ -403,10 +427,10 @@ elif outcome is not None:
             )
             if picked is not None:
                 choices[index] = str(picked)
-        if st.button("Подтвердить точки"):
+        if st.button("Подтвердить точки", key="confirm-venues"):
             st.session_state["outcome"] = apply_slot_choices(outcome, choices)
             st.rerun()
-    elif outcome.status is IntakeStatus.READY and outcome.chosen_venues:
+    elif outcome.status == IntakeStatus.READY and outcome.chosen_venues:
         legal_choices: dict[str, str] = st.session_state.setdefault("legal_choices", {})
         cache = cast(
             dict[object, list[PlaceRecord]],
@@ -420,18 +444,19 @@ elif outcome is not None:
         )
 
         def _collect() -> list[PlaceRecord]:
-            return collect_three(
-                venues,
-                classified,
-                CollectDeps(
-                    twogis=map_api_from_env(),
-                    html=HttpxHtmlFetcher(),
-                    parser=OpenHtmlParser(),
-                    legal=MarkerLegalParser(),
-                    pacer=SleepPacer(3.0),
-                ),
-                legal_choices=legal_choices,
-            )
+            with st.spinner("Собираем поля по трём точкам…"):
+                return collect_three(
+                    venues,
+                    classified,
+                    CollectDeps(
+                        twogis=map_api_from_env(),
+                        html=HttpxHtmlFetcher(),
+                        parser=OpenHtmlParser(),
+                        legal=MarkerLegalParser(),
+                        pacer=SleepPacer(3.0),
+                    ),
+                    legal_choices=legal_choices,
+                )
 
         rows, wrote = rows_from_cache(cache, key, _collect)
         if wrote:

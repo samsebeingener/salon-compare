@@ -158,6 +158,39 @@ def test_collect_fills_checko_when_egrul_empty() -> None:
     assert "Юсупова" not in str(place.egrul_activity.value)
 
 
+def test_collect_fills_checko_from_twelve_digit_inn() -> None:
+    url = checko_card_url("", INN_IP)
+    html = FakeHtml(
+        {
+            egrul_url(INN_IP): HtmlFetchResult("blocked", "captcha", egrul_url(INN_IP)),
+            url: HtmlFetchResult("ok", PERSON_HTML, url),
+        }
+    )
+    venue = VenueCandidate("inn:" + INN_IP, INN_IP, egrul_url(INN_IP), "inn")
+    place = collect_place(venue, classify_hook(INN_IP), _deps(html))
+    assert place.egrul_registered_at.value == "08.05.2019"
+    assert place.egrul_registered_at.source_url == url
+    assert url in html.calls
+
+
+def test_collect_fills_checko_from_ogrnip() -> None:
+    url = checko_card_url(OGRNIP)
+    html = FakeHtml(
+        {
+            egrul_url(OGRNIP): HtmlFetchResult("blocked", "captcha", egrul_url(OGRNIP)),
+            rbc_search_url(OGRNIP): HtmlFetchResult(
+                "empty", "", rbc_search_url(OGRNIP)
+            ),
+            url: HtmlFetchResult("ok", PERSON_HTML, url),
+        }
+    )
+    venue = VenueCandidate("ogrnip:" + OGRNIP, OGRNIP, egrul_url(OGRNIP), "ogrnip")
+    place = collect_place(venue, classify_hook(OGRNIP), _deps(html))
+    assert place.egrul_registered_at.value == "08.05.2019"
+    assert url == f"https://checko.ru/entrepreneur/{OGRNIP}"
+    assert url in html.calls
+
+
 def test_readme_mentions_checko() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
     assert "checko.ru" in text

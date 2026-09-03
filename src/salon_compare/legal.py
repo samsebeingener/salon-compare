@@ -11,7 +11,7 @@ from urllib.parse import quote_plus, unquote
 
 from pydantic import BaseModel
 
-from salon_compare.hooks import ClassifiedHook, HookKind
+from salon_compare.hooks import OGRN_KINDS, ClassifiedHook, HookKind
 
 
 @dataclass(frozen=True)
@@ -237,7 +237,7 @@ def resolve_legal_orgs(
     inn_hits: Sequence[LegalOrg],
     extra_ogrn: str | None = None,
 ) -> list[LegalOrg]:
-    if hook.kind is HookKind.OGRN:
+    if hook.kind in OGRN_KINDS:
         return [LegalOrg(hook.normalized, hook.raw.strip(), egrul_url(hook.normalized))]
     if hook.kind is HookKind.INN:
         return list(inn_hits)
