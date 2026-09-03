@@ -258,4 +258,5 @@ def test_app_accepts_three_hooks_without_report() -> None:
     assert "reload(intake)" not in text
     assert "Уточняем данные ..." in text
     assert "Собираем поля по трём точкам" in text
+    assert "Ждём ответ модели" in text
     assert "сравнительн" not in lowered

@@ -253,6 +253,45 @@ def resolve_legal_orgs(
 
 _DATE = re.compile(r"\b(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})\b")
 _OGRN = re.compile(r"\b(\d{15}|\d{13})\b")
+_ACTIVITY_MARKUP = re.compile(
+    r"rel\s*=|href\s*=|src\s*=|data-goal|okved_flex|nofollow|<|>",
+    re.IGNORECASE,
+)
+
+
+def _plain_html(html: str) -> str:
+    text = unescape(re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.I | re.S))
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return unescape(re.sub(r"\s+", " ", text)).strip()
+
+
+def _egrul_activity(html: str) -> str | None:
+    plain = _plain_html(html)
+    lowered = plain.lower()
+    for marker in ("основной вид деятельности", "вид деятельности"):
+        idx = lowered.find(marker)
+        if idx < 0:
+            continue
+        snippet = re.sub(r"\s+", " ", plain[idx : idx + 180]).strip()[:120]
+        if _ACTIVITY_MARKUP.search(snippet):
+            continue
+        rest = snippet[len(marker) :].strip(" :.,;")
+        if len(rest) < 8:
+            continue
+        if rest.lower().startswith("виды деят"):
+            continue
+        return snippet
+    crumbs = re.findall(
+        r'category-breadcrumb__item"[^>]*>([^<]+)',
+        html,
+        re.IGNORECASE,
+    )
+    if crumbs:
+        crumb = unescape(crumbs[-1]).strip()[:120]
+        if crumb and not _ACTIVITY_MARKUP.search(crumb):
+            return crumb
+    return None
 
 
 class MarkerLegalParser:
@@ -286,26 +325,10 @@ class MarkerLegalParser:
             found_date = _DATE.search(html)
             if found_date:
                 registered = found_date.group(1)
-        activity = None
-        for marker in ("основной вид деятельности", "вид деятельности", "оквэд"):
-            idx = lowered.find(marker)
-            if idx >= 0:
-                snippet = html[idx : idx + 180]
-                cleaned = re.sub(r"<[^>]+>", " ", snippet)
-                activity = re.sub(r"\s+", " ", cleaned).strip()[:120]
-                break
-        if activity is None:
-            crumbs = re.findall(
-                r'category-breadcrumb__item"[^>]*>([^<]+)',
-                html,
-                re.IGNORECASE,
-            )
-            if crumbs:
-                activity = unescape(crumbs[-1]).strip()[:120]
         return LegalExtract(
             registered_at=registered,
             status=status,
-            activity=activity,
+            activity=_egrul_activity(html),
             orgs=orgs,
         )
 

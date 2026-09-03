@@ -61,6 +61,30 @@ def test_smartcaptcha_still_blocked() -> None:
     assert classify_fetch(200, "<form>captcha input</form>") == "blocked"
 
 
+def test_egrip_okved_flex_link_is_not_activity() -> None:
+    html = (
+        'ОКВЭД" rel="nofollow" data-goal-param="interactions, okved_flex_ip" >'
+        ' Виды деят. <a href="/egrip?ogrnip=319774600285920"'
+    )
+    extract = MarkerLegalParser().parse_egrul(html)
+    assert extract.activity is None
+
+
+def test_okved_nav_does_not_hide_real_activity() -> None:
+    html = """
+    <a title="ОКВЭД" rel="nofollow" data-goal-param="interactions, okved_flex_ip">
+    Виды деят.</a><a href="/egrip?ogrnip=319774600285920">карточка</a>
+    <span>Основной вид деятельности</span>
+    Предоставление услуг парикмахерскими и салонами красоты
+    """
+    extract = MarkerLegalParser().parse_egrul(html)
+    assert extract.activity is not None
+    assert "парикмахерскими" in extract.activity.lower()
+    assert "nofollow" not in extract.activity.lower()
+    assert "href" not in extract.activity.lower()
+    assert "okved_flex" not in extract.activity.lower()
+
+
 def test_acting_org_not_killed_by_related_liquidated() -> None:
     html = """
     <span>Действующая организация</span>

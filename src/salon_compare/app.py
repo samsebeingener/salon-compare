@@ -293,22 +293,23 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
     st.caption("текст модели, не инвестиционный совет")
     fingerprint = rows_fingerprint(rows)
     if st.session_state.get("llm_fp") != fingerprint:
-        llm = make_llm()
-        st.session_state["llm_kind"] = type(llm).__name__
-        st.session_state["llm_verdict"] = complete_verdict(rows, llm)
-        st.session_state["llm_error"] = llm.last_error()
-        usage = llm.last_usage()
-        run_id = st.session_state.get("run_id")
-        if usage.total_tokens is not None or usage.cost is not None:
-            st.session_state["llm_usage"] = usage
-            if isinstance(run_id, int):
-                save_run_usage(run_id, usage)
-        elif st.session_state.get("llm_usage") is None:
-            st.session_state["llm_usage"] = usage
-        stored = st.session_state.get("llm_verdict")
-        if isinstance(stored, ModelVerdict) and isinstance(run_id, int):
-            save_run_verdict(run_id, stored)
-        st.session_state["llm_fp"] = fingerprint
+        with st.spinner("Ждём ответ модели…"):
+            llm = make_llm()
+            st.session_state["llm_kind"] = type(llm).__name__
+            st.session_state["llm_verdict"] = complete_verdict(rows, llm)
+            st.session_state["llm_error"] = llm.last_error()
+            usage = llm.last_usage()
+            run_id = st.session_state.get("run_id")
+            if usage.total_tokens is not None or usage.cost is not None:
+                st.session_state["llm_usage"] = usage
+                if isinstance(run_id, int):
+                    save_run_usage(run_id, usage)
+            elif st.session_state.get("llm_usage") is None:
+                st.session_state["llm_usage"] = usage
+            stored = st.session_state.get("llm_verdict")
+            if isinstance(stored, ModelVerdict) and isinstance(run_id, int):
+                save_run_verdict(run_id, stored)
+            st.session_state["llm_fp"] = fingerprint
     verdict = st.session_state.get("llm_verdict")
     kind = st.session_state.get("llm_kind")
     if not isinstance(verdict, ModelVerdict) and kind == "SavedRun":
