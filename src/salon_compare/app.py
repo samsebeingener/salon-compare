@@ -157,9 +157,7 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             "ЕГРЮЛ/ЕГРИП дата",
             "ЕГРЮЛ/ЕГРИП статус",
             "ЕГРЮЛ/ЕГРИП деятельность",
-            "Федресурс",
-            "КАД",
-            "Индекс 40/25/20/15",
+            "Индекс 50/25/25",
             "Индекс пояснение",
         ]
     }
@@ -183,8 +181,6 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             _legal_cell(row, row.egrul_registered_at),
             _legal_cell(row, row.egrul_status),
             _legal_cell(row, row.egrul_activity),
-            _legal_cell(row, row.fedresurs),
-            _legal_cell(row, row.kad),
             index_cell,
             scored.note,
         ]

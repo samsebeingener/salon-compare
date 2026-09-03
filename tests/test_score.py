@@ -45,48 +45,77 @@ def _block(score: object, name: str) -> object:
     raise AssertionError(name)
 
 
-def test_twogis_rating_without_freshness_is_plus_two() -> None:
+def test_high_rating_many_reviews_is_plus_three_without_freshness() -> None:
     score = score_place(
         _place(twogis_rating=_found(4.9), twogis_review_count=_found(80)),
         as_of=AS_OF,
     )
     rep = _block(score, "reputation")
-    assert getattr(rep, "points") == 2
-    assert "не ясно какой свежее" not in getattr(rep, "reason")
-    assert score.index == round(100 * 0.4 * (2 / 3), 1)
+    assert getattr(rep, "points") == 3
+    assert score.index == round(100 * 0.5 * (3 / 3), 1)
 
 
-def test_single_high_rating_is_plus_two_not_three() -> None:
+def test_rating_four_point_two_is_plus_two() -> None:
     score = score_place(
-        _place(twogis_rating=_found(4.6), twogis_review_count=_found(80)),
+        _place(twogis_rating=_found(4.2), twogis_review_count=_found(20)),
         as_of=AS_OF,
     )
     rep = _block(score, "reputation")
     assert getattr(rep, "points") == 2
-    assert score.index == round(100 * 0.4 * (2 / 3), 1)
+    assert score.index == round(100 * 0.5 * (2 / 3), 1)
 
 
-def test_egrul_without_registries_skips_stability() -> None:
+def test_high_rating_few_reviews_is_plus_two() -> None:
+    score = score_place(
+        _place(twogis_rating=_found(4.9), twogis_review_count=_found(5)),
+        as_of=AS_OF,
+    )
+    rep = _block(score, "reputation")
+    assert getattr(rep, "points") == 2
+
+
+def test_egrul_age_scores_stability_without_courts() -> None:
     score = score_place(
         _place(egrul_registered_at=_found("01.04.2014")),
         as_of=AS_OF,
     )
     stab = _block(score, "stability")
-    assert getattr(stab, "points") is None
+    assert getattr(stab, "points") == 3
     assert "долгов нет" not in getattr(stab, "reason")
 
 
-def test_open_registries_age_and_clean() -> None:
+def test_liquidated_status_is_stability_zero() -> None:
     score = score_place(
         _place(
             egrul_registered_at=_found("01.04.2014"),
-            fedresurs=_found("не обнаружено"),
-            kad=_found("не обнаружено"),
+            egrul_status=_found("не действует"),
         ),
         as_of=AS_OF,
     )
     stab = _block(score, "stability")
-    assert getattr(stab, "points") == 4
+    assert getattr(stab, "points") == 0
+
+
+def test_metro_nearby_scores_location() -> None:
+    score = score_place(
+        _place(metro=_found("Новослободская, 200 м")),
+        as_of=AS_OF,
+    )
+    loc = _block(score, "location")
+    assert getattr(loc, "points") == 2
+
+
+def test_neighbors_better_than_us_adds_location_point() -> None:
+    score = score_place(
+        _place(
+            metro=_found("Новослободская, 200 м"),
+            neighbor_count=_found(4),
+            neighbor_vs=_found("ниже"),
+        ),
+        as_of=AS_OF,
+    )
+    loc = _block(score, "location")
+    assert getattr(loc, "points") == 3
 
 
 def test_empty_place_index_is_not_zero() -> None:
