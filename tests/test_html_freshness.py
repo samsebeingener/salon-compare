@@ -157,10 +157,9 @@ def test_env_rates_accept_comma_decimal(monkeypatch: pytest.MonkeyPatch) -> None
         {"usage": {"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}}
     )
     assert estimate_usd(usage) == 1.05
-    assert (
-        format_usd_sum_line(*estimated_usd_parts(usage))
-        == "0,15000+0,90000=1,05000$"
-    )
+    parts = estimated_usd_parts(usage)
+    assert parts is not None
+    assert format_usd_sum_line(*parts) == "0,15000+0,90000=1,05000$"
 
 
 def test_format_usd_sum_line_matches_user_layout() -> None:

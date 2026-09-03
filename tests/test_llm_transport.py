@@ -88,7 +88,15 @@ def test_chat_payload_disables_stream() -> None:
 
     body = chat_payload("gemini-3-flash", "sys", "user")
     assert body["stream"] is False
-    assert body["messages"][0]["content"][0]["text"] == "sys"
+    messages = body["messages"]
+    assert isinstance(messages, list)
+    system_message = messages[0]
+    assert isinstance(system_message, dict)
+    content = system_message["content"]
+    assert isinstance(content, list)
+    part = content[0]
+    assert isinstance(part, dict)
+    assert part["text"] == "sys"
 
 
 def test_message_content_joins_text_parts() -> None:

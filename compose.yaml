@@ -3,7 +3,8 @@ services:
     image: salon-compare:${GIT_SHA:-local}
     build: .
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8501:8501"
     environment:

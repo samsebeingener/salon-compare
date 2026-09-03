@@ -21,7 +21,7 @@ _DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
 
 
 def chat_completions_url(base_url: str, model: str) -> str:
-    """Kie: {origin}/{model}/v1/chat/completions. Иначе OpenAI: {base}/chat/completions."""
+    """Kie: origin/{model}/v1/chat/completions. Иначе {base}/chat/completions."""
     parsed = urlparse(base_url if "://" in base_url else f"https://{base_url}")
     host = parsed.netloc.lower()
     if host == "api.kie.ai" or host.endswith(".kie.ai"):
@@ -53,13 +53,26 @@ def chat_payload(model: str, system_text: str, prompt: str) -> dict[str, object]
     }
 
 
-def unwrap_chat_response(payload: object) -> object:
+def unwrap_chat_response(payload: object) -> dict[str, object]:
     if not isinstance(payload, dict):
-        return payload
+        return {}
     inner = payload.get("data")
     if isinstance(inner, dict) and "choices" in inner:
         return inner
     return payload
+
+
+def choice_message_content(payload: dict[str, object]) -> object | None:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    first = choices[0]
+    if not isinstance(first, dict):
+        return None
+    message = first.get("message")
+    if not isinstance(message, dict):
+        return None
+    return message.get("content")
 
 
 def message_content_to_str(raw: object) -> str | None:
@@ -318,10 +331,9 @@ class OpenAiCompatLlm:
                 )
                 return ""
             self._usage = usage_from_response(data)
-            try:
-                raw_content = data["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, TypeError):
-                msg = data.get("msg") if isinstance(data, dict) else None
+            raw_content = choice_message_content(data)
+            if raw_content is None:
+                msg = data.get("msg")
                 self._last_error = (
                     f"Kie: {msg}"
                     if isinstance(msg, str) and msg
@@ -355,9 +367,10 @@ class OpenAiCompatLlm:
 
 
 def make_llm() -> LlmClient:
-    key = os.environ.get("LLM_API_KEY", "").strip() or os.environ.get(
-        "KIE_API_KEY", ""
-    ).strip()
+    key = (
+        os.environ.get("LLM_API_KEY", "").strip()
+        or os.environ.get("KIE_API_KEY", "").strip()
+    )
     base = os.environ.get("LLM_BASE_URL", "").strip()
     model = os.environ.get("LLM_MODEL", "").strip()
     if not key or not base or not model:
