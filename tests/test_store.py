@@ -6,12 +6,14 @@ from pathlib import Path
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
 from salon_compare.legal import LegalOrg
 from salon_compare.llm import LlmUsage
+from salon_compare.report import ModelVerdict
 from salon_compare.store import (
     collect_cache_key,
     format_run_date,
     list_runs,
     load_run,
     load_run_usage,
+    load_run_verdict,
     rows_from_cache,
     run_select_label,
     save_run,
@@ -96,6 +98,36 @@ def test_update_run_keeps_id_and_usage(tmp_path: Path) -> None:
     assert usage.total_tokens == 3
 
 
+def test_save_and_load_keeps_verdict_and_usage(tmp_path: Path) -> None:
+    path = tmp_path / "salon-compare.sqlite"
+    usage = LlmUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15, cost=0.02)
+    verdict = ModelVerdict(
+        interesting="Вишня",
+        why_better="рейтинг выше",
+        breaks_if="аренда",
+        compared_index=12.0,
+    )
+    run_id = save_run([_row()], path, usage=usage, verdict=verdict)
+    loaded_usage = load_run_usage(run_id, path)
+    loaded_verdict = load_run_verdict(run_id, path)
+    assert loaded_usage is not None
+    assert loaded_usage.total_tokens == 15
+    assert loaded_verdict is not None
+    assert loaded_verdict.interesting == "Вишня"
+    save_run_usage(
+        run_id,
+        LlmUsage(prompt_tokens=1, completion_tokens=2, total_tokens=3),
+        path,
+    )
+    update_run(run_id, [_row()], path)
+    still = load_run_verdict(run_id, path)
+    assert still is not None
+    assert still.why_better == "рейтинг выше"
+    kept = load_run_usage(run_id, path)
+    assert kept is not None
+    assert kept.total_tokens == 3
+
+
 def test_load_does_not_need_html(tmp_path: Path) -> None:
     path = tmp_path / "db.sqlite"
     run_id = save_run([_row()], path)
@@ -154,6 +186,9 @@ def test_app_opens_saved_without_new_search() -> None:
     assert "сохранённый" in lowered or "сохраненный" in lowered
     assert "нового поиска нет" in lowered
     assert "save_run" in text
+    assert "load_run_verdict" in text
+    assert "save_run_verdict" in text
+    assert "SavedRun" in text
     assert "update_run" in text
     assert "collected_rows" in text or "rows_from_cache" in text
     assert "покупай" not in lowered

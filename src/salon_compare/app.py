@@ -55,9 +55,11 @@ collect_cache_key = store.collect_cache_key
 list_runs = store.list_runs
 load_run = store.load_run
 load_run_usage = store.load_run_usage
+load_run_verdict = store.load_run_verdict
 rows_from_cache = store.rows_from_cache
 save_run = store.save_run
 save_run_usage = store.save_run_usage
+save_run_verdict = store.save_run_verdict
 update_run = store.update_run
 
 load_project_env()
@@ -85,9 +87,12 @@ if _saved:
                 tuple(row.venue_id for row in loaded),
             )
             st.session_state["llm_usage"] = load_run_usage(int(_picked))
+            st.session_state["llm_verdict"] = load_run_verdict(int(_picked))
+            st.session_state["llm_kind"] = "SavedRun"
+            st.session_state["llm_fp"] = rows_fingerprint(loaded)
             st.session_state["run_id"] = int(_picked)
             st.session_state.pop("outcome", None)
-            st.session_state.pop("llm_fp", None)
+            st.session_state.pop("llm_error", None)
 
 hook_one = st.text_input("Зацепка 1")
 hook_two = st.text_input("Зацепка 2")
@@ -272,16 +277,22 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
         st.session_state["llm_verdict"] = complete_verdict(rows, llm)
         st.session_state["llm_error"] = llm.last_error()
         usage = llm.last_usage()
-        if usage.total_tokens is not None:
+        run_id = st.session_state.get("run_id")
+        if usage.total_tokens is not None or usage.cost is not None:
             st.session_state["llm_usage"] = usage
-            run_id = st.session_state.get("run_id")
             if isinstance(run_id, int):
                 save_run_usage(run_id, usage)
         elif st.session_state.get("llm_usage") is None:
             st.session_state["llm_usage"] = usage
+        stored = st.session_state.get("llm_verdict")
+        if isinstance(stored, ModelVerdict) and isinstance(run_id, int):
+            save_run_verdict(run_id, stored)
         st.session_state["llm_fp"] = fingerprint
     verdict = st.session_state.get("llm_verdict")
     kind = st.session_state.get("llm_kind")
+    if not isinstance(verdict, ModelVerdict) and kind == "SavedRun":
+        st.write("вывод модели не найден (в разборе не сохранялся)")
+        return
     if not isinstance(verdict, ModelVerdict) and kind == NullLlm.__name__:
         st.write("вывод модели не найден (нет ключа)")
         return
@@ -343,6 +354,8 @@ if st.button("Разобрать зацепки"):
     st.session_state.pop("row_cache", None)
     st.session_state.pop("llm_fp", None)
     st.session_state.pop("llm_usage", None)
+    st.session_state.pop("llm_verdict", None)
+    st.session_state.pop("llm_kind", None)
     st.session_state.pop("llm_error", None)
     st.session_state.pop("run_id", None)
     st.session_state["outcome"] = resolve_intake(

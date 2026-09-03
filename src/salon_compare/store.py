@@ -11,6 +11,7 @@ from pathlib import Path
 from salon_compare.collect import PlaceRecord
 from salon_compare.legal import LegalOrg
 from salon_compare.llm import LlmUsage
+from salon_compare.report import ModelVerdict
 
 
 def default_db_path() -> Path:
@@ -44,29 +45,60 @@ def _pack_rows(rows: Sequence[PlaceRecord]) -> list[dict[str, object]]:
     return packed
 
 
-def _dump_rows(rows: Sequence[PlaceRecord], usage: LlmUsage | None = None) -> str:
+def _dump_rows(
+    rows: Sequence[PlaceRecord],
+    usage: LlmUsage | None = None,
+    verdict: ModelVerdict | None = None,
+) -> str:
     payload: dict[str, object] = {
         "rows": _pack_rows(rows),
         "usage": usage.model_dump() if usage is not None else None,
+        "verdict": verdict.model_dump() if verdict is not None else None,
     }
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _row_dicts(raw: str) -> tuple[list[dict[str, object]], dict[str, object] | None]:
+def _payload_parts(
+    raw: str,
+) -> tuple[
+    list[dict[str, object]],
+    dict[str, object] | None,
+    dict[str, object] | None,
+]:
     data = json.loads(raw)
     if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict)], None
+        items = [item for item in data if isinstance(item, dict)]
+        return items, None, None
     if isinstance(data, dict):
         rows = data.get("rows")
         usage = data.get("usage")
+        verdict = data.get("verdict")
         items = rows if isinstance(rows, list) else []
         usage_dict = usage if isinstance(usage, dict) else None
-        return [item for item in items if isinstance(item, dict)], usage_dict
-    return [], None
+        verdict_dict = verdict if isinstance(verdict, dict) else None
+        packed_rows = [item for item in items if isinstance(item, dict)]
+        return packed_rows, usage_dict, verdict_dict
+    return [], None, None
+
+
+def _row_dicts(raw: str) -> tuple[list[dict[str, object]], dict[str, object] | None]:
+    items, usage, _verdict = _payload_parts(raw)
+    return items, usage
+
+
+def _encode_payload(
+    rows: list[dict[str, object]],
+    usage: dict[str, object] | None,
+    verdict: dict[str, object] | None,
+) -> str:
+    return json.dumps(
+        {"rows": rows, "usage": usage, "verdict": verdict},
+        ensure_ascii=False,
+    )
 
 
 def _load_rows(raw: str) -> list[PlaceRecord]:
-    items, _usage = _row_dicts(raw)
+    items, _usage, _verdict = _payload_parts(raw)
     rows: list[PlaceRecord] = []
     for item in items:
         parsed: list[LegalOrg] = []
@@ -90,13 +122,14 @@ def save_run(
     rows: Sequence[PlaceRecord],
     path: Path | None = None,
     usage: LlmUsage | None = None,
+    verdict: ModelVerdict | None = None,
 ) -> int:
     db = path or default_db_path()
     created = datetime.now(UTC).replace(microsecond=0).isoformat()
     with _connect(db) as conn:
         cursor = conn.execute(
             "INSERT INTO runs (created_at, payload) VALUES (?, ?)",
-            (created, _dump_rows(rows, usage)),
+            (created, _dump_rows(rows, usage, verdict)),
         )
         conn.commit()
         run_id = cursor.lastrowid
@@ -149,6 +182,29 @@ def load_run_usage(run_id: int, path: Path | None = None) -> LlmUsage | None:
     return parsed
 
 
+def load_run_verdict(run_id: int, path: Path | None = None) -> ModelVerdict | None:
+    db = path or default_db_path()
+    if not db.is_file():
+        return None
+    with _connect(db) as conn:
+        found = conn.execute(
+            "SELECT payload FROM runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+    if found is None:
+        return None
+    try:
+        _rows, _usage, verdict = _payload_parts(str(found[0]))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+    if verdict is None:
+        return None
+    try:
+        return ModelVerdict.model_validate(verdict)
+    except (ValueError, TypeError):
+        return None
+
+
 def update_run(
     run_id: int,
     rows: Sequence[PlaceRecord],
@@ -165,13 +221,13 @@ def update_run(
         if found is None:
             return
         try:
-            _old, usage = _row_dicts(str(found[0]))
+            _old, usage, verdict = _payload_parts(str(found[0]))
         except (json.JSONDecodeError, ValueError, TypeError):
             usage = None
-        payload = {"rows": _pack_rows(rows), "usage": usage}
+            verdict = None
         conn.execute(
             "UPDATE runs SET payload = ? WHERE id = ?",
-            (json.dumps(payload, ensure_ascii=False), run_id),
+            (_encode_payload(_pack_rows(rows), usage, verdict), run_id),
         )
         conn.commit()
 
@@ -188,13 +244,38 @@ def save_run_usage(run_id: int, usage: LlmUsage, path: Path | None = None) -> No
         if found is None:
             return
         try:
-            rows, _old = _row_dicts(str(found[0]))
+            rows, _old, verdict = _payload_parts(str(found[0]))
         except (json.JSONDecodeError, ValueError, TypeError):
             return
-        payload = {"rows": rows, "usage": usage.model_dump()}
         conn.execute(
             "UPDATE runs SET payload = ? WHERE id = ?",
-            (json.dumps(payload, ensure_ascii=False), run_id),
+            (_encode_payload(rows, usage.model_dump(), verdict), run_id),
+        )
+        conn.commit()
+
+
+def save_run_verdict(
+    run_id: int,
+    verdict: ModelVerdict,
+    path: Path | None = None,
+) -> None:
+    db = path or default_db_path()
+    if not db.is_file():
+        return
+    with _connect(db) as conn:
+        found = conn.execute(
+            "SELECT payload FROM runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        if found is None:
+            return
+        try:
+            rows, usage, _old = _payload_parts(str(found[0]))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return
+        conn.execute(
+            "UPDATE runs SET payload = ? WHERE id = ?",
+            (_encode_payload(rows, usage, verdict.model_dump()), run_id),
         )
         conn.commit()
 
