@@ -1,4 +1,7 @@
-"""Живой прогон LLM: демо-тройка → досье → вывод модели. Лог: data/llm-interactions.log"""
+"""Живой прогон LLM: демо-тройка → досье → вывод модели.
+
+Лог: data/llm-interactions.log
+"""
 
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from salon_compare.maps_http import map_api_from_env
 from salon_compare.report import build_evidence_dossier, complete_verdict
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
 from salon_compare.score import score_place
+
 
 def _chosen_venues(outcome: IntakeOutcome) -> tuple | None:
     if outcome.status is IntakeStatus.READY and outcome.chosen_venues is not None:
@@ -129,7 +133,9 @@ def main() -> int:
         print(f"Событий в логе: {len(lines)}", flush=True)
         for line in lines[-3:]:
             event = json.loads(line)
-            print(f"  [{event.get('event')}] model={event.get('model', '-')}", flush=True)
+            print(
+                f"  [{event.get('event')}] model={event.get('model', '-')}", flush=True
+            )
     return 0
 
 

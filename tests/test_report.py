@@ -262,4 +262,5 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert "footnote_map" in text
     assert "Источники" in text
     assert "importlib.reload" in text
+    assert "reload(llm)" in text
     assert "cell_help" in text

@@ -6,6 +6,7 @@ from typing import cast
 
 import streamlit as st
 
+import salon_compare.llm as llm
 import salon_compare.report as report
 import salon_compare.store as store
 from salon_compare.collect import (
@@ -25,15 +26,20 @@ from salon_compare.intake import (
     resolve_intake,
 )
 from salon_compare.legal import LegalOrg, MarkerLegalParser
-from salon_compare.llm import LlmUsage, NullLlm, estimate_usd, make_llm
 from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
 from salon_compare.score import score_place
 
+llm = importlib.reload(llm)
 report = importlib.reload(report)
 store = importlib.reload(store)
+LlmUsage = llm.LlmUsage
+NullLlm = llm.NullLlm
+estimated_usd_parts = llm.estimated_usd_parts
+format_usd_sum_line = llm.format_usd_sum_line
+make_llm = llm.make_llm
 EDITABLE_FIELDS = report.EDITABLE_FIELDS
 FIELD_LABELS = report.FIELD_LABELS
 ModelVerdict = report.ModelVerdict
@@ -315,13 +321,13 @@ def _show_usage() -> None:
             )
             st.write(f"Ввод / выход: {prompt} / {completion}")
     if usage.cost is not None:
-        st.write(f"Стоимость (из ответа модели): ${usage.cost}")
-    else:
-        usd = estimate_usd(usage)
-        if usd is None:
-            st.write("стоимость не найдена")
-        else:
-            st.write(f"Стоимость (оценка по тарифу): ${usd}")
+        st.write(f"{str(usage.cost).replace('.', ',')}$")
+        return
+    parts = estimated_usd_parts(usage)
+    if parts is None:
+        st.write("стоимость не найдена")
+        return
+    st.write(format_usd_sum_line(*parts))
 
 
 def _show_report(rows: list[PlaceRecord]) -> None:
