@@ -11,6 +11,17 @@ from urllib.parse import quote_plus, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from salon_compare.checko import (
+    checko_activity,
+    checko_card_url,
+    checko_efrsb,
+    checko_fedresurs,
+    checko_kad,
+    checko_legal_address,
+    checko_page_matches,
+    checko_registered_at,
+    checko_status,
+)
 from salon_compare.hooks import ClassifiedHook, HookKind
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import (
@@ -114,6 +125,7 @@ class PlaceRecord(BaseModel):
     twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
     district: SourcedField = Field(default_factory=SourcedField)
     metro: SourcedField = Field(default_factory=SourcedField)
+    efrsb: SourcedField = Field(default_factory=SourcedField)
 
 
 @dataclass(frozen=True)
@@ -520,9 +532,14 @@ def collect_place(
         legal_choice,
         deps.pacer,
         extra_ogrn=site_ogrn,
-        extra_inn=site_inn,
+        extra_inn=site_inn or twogis.inn,
         site_ogrn_url=site_ogrn_url,
     )
+    if (
+        address.trust is Trust.MISSING
+        and legal.legal_address.trust is not Trust.MISSING
+    ):
+        address = legal.legal_address
     hours = _field(
         twogis.hours,
         twogis.source_url,
@@ -547,6 +564,7 @@ def collect_place(
         egrul_activity=legal.activity,
         fedresurs=legal.fedresurs,
         kad=legal.kad,
+        efrsb=legal.efrsb,
         legal_candidates=legal.candidates,
         hours=hours,
         twogis_last_review=gap,
@@ -569,6 +587,8 @@ class _LegalBundle:
     activity: SourcedField
     fedresurs: SourcedField
     kad: SourcedField
+    efrsb: SourcedField
+    legal_address: SourcedField
 
 
 def _inn_hits_from_value(
@@ -730,7 +750,7 @@ def _collect_legal(
     site_ogrn_url: str | None = None,
 ) -> _LegalBundle:
     gap = _missing()
-    empty = _LegalBundle((), gap, gap, gap, gap, gap)
+    empty = _LegalBundle((), gap, gap, gap, gap, gap, gap, gap)
     inn_hits = _inn_hits(hook, html, parser, legal_choice)
     if not inn_hits and extra_inn:
         inn_hits = _inn_hits_from_value(extra_inn, html, parser)
@@ -745,7 +765,7 @@ def _collect_legal(
         if len(picked) == 1:
             orgs = picked
     if len(orgs) > 1:
-        return _LegalBundle(tuple(orgs), gap, gap, gap, gap, gap)
+        return _LegalBundle(tuple(orgs), gap, gap, gap, gap, gap, gap, gap)
     if len(orgs) != 1:
         return empty
     org = orgs[0]
@@ -775,7 +795,51 @@ def _collect_legal(
             site_ogrn_url,
             gap,
         )
-    return _LegalBundle((), registered, status, activity, gap, gap)
+    return _checko_fill(
+        org,
+        html,
+        extra_inn or twogis.inn,
+        registered,
+        status,
+        activity,
+        gap,
+    )
+
+
+def _weak_if(value: str | None, source: str, gap: SourcedField) -> SourcedField:
+    return _weak(value, source) if value else gap
+
+
+def _checko_fill(
+    org: LegalOrg,
+    html: HtmlFetcher,
+    inn: str | None,
+    registered: SourcedField,
+    status: SourcedField,
+    activity: SourcedField,
+    gap: SourcedField,
+) -> _LegalBundle:
+    url = checko_card_url(org.ogrn, inn)
+    page = html.get(url)
+    if page.status != "ok" or not checko_page_matches(page.body, org.ogrn):
+        return _LegalBundle((), registered, status, activity, gap, gap, gap, gap)
+    body = page.body
+    if registered.trust is Trust.MISSING:
+        registered = _weak_if(checko_registered_at(body), url, gap)
+    if status.trust is Trust.MISSING:
+        status = _weak_if(checko_status(body), url, gap)
+    if activity.trust is Trust.MISSING:
+        activity = _weak_if(checko_activity(body), url, gap)
+    return _LegalBundle(
+        (),
+        registered,
+        status,
+        activity,
+        _weak_if(checko_fedresurs(body), url, gap),
+        _weak_if(checko_kad(body), url, gap),
+        _weak_if(checko_efrsb(body), url, gap),
+        _weak_if(checko_legal_address(body), url, gap),
+    )
 
 
 def collect_three(

@@ -67,6 +67,8 @@ def html_client_kwargs(url: str) -> HttpxClientKwargs:
         return {"trust_env": False}
     if host == "companies.rbc.ru" or host.endswith(".companies.rbc.ru"):
         return {"trust_env": False}
+    if host == "checko.ru" or host.endswith(".checko.ru"):
+        return {"trust_env": False}
     return httpx_client_kwargs()
 
 
