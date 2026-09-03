@@ -174,6 +174,16 @@ def test_coerce_place_record_adds_missing_efrsb() -> None:
     assert upgraded.efrsb.trust == Trust.MISSING
 
 
+def test_coerce_place_record_adds_missing_map_coords() -> None:
+    data = _row().model_dump()
+    data.pop("map_lat", None)
+    data.pop("map_lon", None)
+    upgraded = coerce_place_record(data)
+    assert upgraded is not None
+    assert upgraded.map_lat is None
+    assert upgraded.map_lon is None
+
+
 def test_list_runs_label_has_id_date_and_titles(tmp_path: Path) -> None:
     path = tmp_path / "salon-compare.sqlite"
     first = _row().model_copy(update={"venue_id": "a", "title": "Pink Lemon"})

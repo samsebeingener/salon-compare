@@ -154,18 +154,26 @@ class PlaceRecord(BaseModel):
     district: SourcedField = Field(default_factory=SourcedField)
     metro: SourcedField = Field(default_factory=SourcedField)
     efrsb: SourcedField = Field(default_factory=SourcedField)
+    map_lat: float | None = None
+    map_lon: float | None = None
 
 
 def coerce_place_record(row: object) -> PlaceRecord | None:
-    """Старые JSON/сессии без efrsb и смена класса после reload."""
+    """Старые JSON/сессии без efrsb/map_lat и смена класса после reload."""
+    data: dict[str, object] | None = None
     if isinstance(row, PlaceRecord):
-        return PlaceRecord.model_validate(row.model_dump())
-    dump = getattr(row, "model_dump", None)
-    if callable(dump):
-        return PlaceRecord.model_validate(dump())
-    if isinstance(row, dict):
-        return PlaceRecord.model_validate(row)
-    return None
+        data = row.model_dump()
+    else:
+        dump = getattr(row, "model_dump", None)
+        if callable(dump):
+            data = dump()
+        elif isinstance(row, dict):
+            data = dict(row)
+    if data is None:
+        return None
+    data.setdefault("map_lat", None)
+    data.setdefault("map_lon", None)
+    return PlaceRecord.model_validate(data)
 
 
 @dataclass(frozen=True)
@@ -485,6 +493,8 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
         egrul_activity=gap,
         fedresurs=gap,
         kad=gap,
+        map_lat=None,
+        map_lon=None,
     )
 
 
@@ -616,6 +626,8 @@ def collect_place(
             else _missing()
         ),
         metro=(_found(twogis.metro, twogis.source_url) if twogis.metro else _missing()),
+        map_lat=twogis.lat,
+        map_lon=twogis.lon,
     )
 
 

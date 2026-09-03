@@ -37,6 +37,10 @@ APP_URL = "http://127.0.0.1:8501"
 
 HINTS: dict[str, str] = {
     "TWOGIS_API_KEY": "Ключ API 2ГИС (Enter — пропустить, карты будут пустые)",
+    "YANDEX_MAPS_JS_API_KEY": "Ключ JavaScript API Яндекс Карт (Enter — без карты)",
+    "YANDEX_GEOCODER_API_KEY": (
+        "Ключ API Геокодера Яндекс (Enter — без геокода адресов)"
+    ),
     "LLM_API_KEY": "Ключ модели Kie или OpenRouter (Enter — пропустить)",
     "LLM_BASE_URL": "Базовый URL API модели, например https://api.kie.ai/",
     "LLM_MODEL": "Имя модели, например gemini-3-flash",

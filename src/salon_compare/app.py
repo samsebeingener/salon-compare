@@ -19,10 +19,25 @@ from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
-
-collect = (
-    importlib.reload(collect) if not hasattr(collect, "as_sourced_field") else collect
+from salon_compare.yandex_viz import (
+    build_yandex_map_html,
+    has_map_data,
+    markers_from_rows,
+    resolve_marker_coords,
+    yandex_geocoder_key,
+    yandex_maps_js_key,
 )
+
+
+def _needs_collect_reload(mod: object) -> bool:
+    if not hasattr(mod, "as_sourced_field"):
+        return True
+    place = getattr(mod, "PlaceRecord", None)
+    fields = getattr(place, "model_fields", None)
+    return not isinstance(fields, dict) or "map_lat" not in fields
+
+
+collect = importlib.reload(collect) if _needs_collect_reload(collect) else collect
 store = importlib.import_module("salon_compare.store")
 score_mod = importlib.import_module("salon_compare.score")
 report = importlib.import_module("salon_compare.report")
@@ -390,7 +405,47 @@ def _show_usage() -> None:
     st.write(format_usd_sum_line(*parts))
 
 
+def _show_map(rows: list[PlaceRecord]) -> None:
+    points = markers_from_rows(rows)
+    with st.expander("Карта (Яндекс JS API, только просмотр)", expanded=False):
+        st.caption(
+            "Не влияет на сбор полей и индекс. "
+            "Координаты из 2ГИС; иначе геокод адреса на сервере (отдельный ключ)."
+        )
+        js_key = yandex_maps_js_key()
+        if not js_key:
+            st.info("Добавьте YANDEX_MAPS_JS_API_KEY в .env, чтобы показать карту.")
+            return
+        if not has_map_data(points):
+            st.write("Нет адресов или координат для карты.")
+            return
+        needs_geocode = any(point.lat is None or point.lon is None for point in points)
+        geocoder_key = yandex_geocoder_key()
+        if needs_geocode and not geocoder_key:
+            st.warning(
+                "Для меток без координат 2ГИС добавьте YANDEX_GEOCODER_API_KEY в .env "
+                "(отдельный ключ API Геокодера в кабинете Яндекса)."
+            )
+        resolved, stats = resolve_marker_coords(
+            points,
+            geocoder_key if needs_geocode else "",
+        )
+        if stats.placed == 0:
+            st.warning(
+                "Метки не найдены: нет координат 2ГИС и геокодер не разобрал адрес. "
+                "Проверьте YANDEX_GEOCODER_API_KEY и пересоберите разбор."
+            )
+            if stats.missing_titles:
+                st.write("Без координат: " + ", ".join(stats.missing_titles))
+            return
+        st.caption(f"Меток на карте: {stats.placed} из {stats.total}")
+        if stats.missing_titles:
+            st.write("Без координат: " + ", ".join(stats.missing_titles))
+        st.components.v1.html(build_yandex_map_html(resolved, js_key), height=450)
+
+
 def _show_report(rows: list[PlaceRecord]) -> None:
+    _show_map(rows)
     _show_table(rows)
     _show_verdict(rows)
     _show_usage()
