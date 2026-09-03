@@ -4,9 +4,12 @@ from pathlib import Path
 
 from salon_compare.hooks import HookKind, classify_hook
 from salon_compare.intake import (
+    MISSING_VENUE_ID,
     IntakeStatus,
     VenueCandidate,
+    apply_slot_choices,
     candidate_label,
+    replace_slot_search,
     resolve_intake,
 )
 
@@ -103,9 +106,14 @@ def test_duplicate_venues_ask_to_replace() -> None:
         ],
         resolver,
     )
-    assert outcome.status is IntakeStatus.DUPLICATE_VENUES
-    assert "https://example.com/one" in outcome.message
-    assert outcome.chosen_venues is None
+    assert outcome.status is IntakeStatus.NEED_DISAMBIGUATION
+    confirmed = apply_slot_choices(
+        outcome,
+        {0: "one", 1: "two", 2: "one"},
+    )
+    assert confirmed.status is IntakeStatus.DUPLICATE_VENUES
+    assert "https://example.com/one" in confirmed.message
+    assert confirmed.chosen_venues is None
 
 
 def test_ready_when_three_distinct_venues() -> None:
@@ -135,10 +143,72 @@ def test_ready_when_three_distinct_venues() -> None:
         ],
         resolver,
     )
-    assert outcome.status is IntakeStatus.READY
-    assert outcome.chosen_venues is not None
-    assert len(outcome.chosen_venues) == 3
-    assert {v.venue_id for v in outcome.chosen_venues} == {"1", "2", "3"}
+    assert outcome.status is IntakeStatus.NEED_DISAMBIGUATION
+    confirmed = apply_slot_choices(outcome, {0: "1", 1: "2", 2: "3"})
+    assert confirmed.status is IntakeStatus.READY
+    assert confirmed.chosen_venues is not None
+    assert len(confirmed.chosen_venues) == 3
+    assert {v.venue_id for v in confirmed.chosen_venues} == {"1", "2", "3"}
+
+
+def test_replace_slot_search_keeps_other_slots() -> None:
+    pink = classify_hook("https://pinklemon-nails.ru/baumanskaya")
+    name = classify_hook("Вишня Таганская")
+    ogrn = classify_hook("1147746349552")
+    first = VenueCandidate("1", "Pinklemon", "https://example.com/1")
+    vishnya = VenueCandidate("2", "Вишня", "https://example.com/2")
+    wrong = VenueCandidate("3", "Пенг Пей", "https://example.com/peng")
+    right = VenueCandidate("4", "Peng nails", "https://example.com/peng-ok")
+    resolver = ScriptedResolver(
+        {
+            pink.normalized: [first],
+            name.normalized: [vishnya],
+            ogrn.normalized: [wrong],
+            "peng nails": [right],
+        }
+    )
+    outcome = resolve_intake(
+        [
+            "https://pinklemon-nails.ru/baumanskaya",
+            "Вишня Таганская",
+            "1147746349552",
+        ],
+        resolver,
+    )
+    refined = replace_slot_search(outcome, 2, "Peng nails", resolver)
+    assert refined.status is IntakeStatus.NEED_DISAMBIGUATION
+    assert refined.candidates_by_slot[0][0].venue_id == "1"
+    assert refined.candidates_by_slot[1][0].venue_id == "2"
+    assert [item.venue_id for item in refined.candidates_by_slot[2]] == ["4"]
+    assert refined.classified[2].raw == "Peng nails"
+
+
+def test_two_missing_slots_are_not_ready() -> None:
+    first = VenueCandidate("1", "A", "https://example.com/1")
+    second = VenueCandidate("2", "B", "https://example.com/2")
+    third = VenueCandidate("3", "C", "https://example.com/3")
+    resolver = ScriptedResolver(
+        {
+            classify_hook("https://pinklemon-nails.ru/baumanskaya").normalized: [first],
+            classify_hook("Вишня Таганская").normalized: [second],
+            classify_hook("1147746349552").normalized: [third],
+        }
+    )
+    outcome = resolve_intake(
+        [
+            "https://pinklemon-nails.ru/baumanskaya",
+            "Вишня Таганская",
+            "1147746349552",
+        ],
+        resolver,
+    )
+    stuck = apply_slot_choices(
+        outcome,
+        {0: "1", 1: MISSING_VENUE_ID, 2: MISSING_VENUE_ID},
+    )
+    assert stuck.status is IntakeStatus.NEED_DISAMBIGUATION
+    assert stuck.chosen_venues is None
+    assert len(stuck.candidates_by_slot) == 3
 
 
 def test_candidate_label_chain_includes_address() -> None:
@@ -180,4 +250,6 @@ def test_app_accepts_three_hooks_without_report() -> None:
     lowered = text.lower()
     assert "зацепк" in lowered
     assert text.count("st.text_input") >= 3
+    assert "MISSING_VENUE_LABEL" in text
+    assert "replace_slot_search" not in text
     assert "сравнительн" not in lowered

@@ -6,6 +6,7 @@ from typing import cast
 
 import streamlit as st
 
+import salon_compare.intake as intake
 import salon_compare.llm as llm
 import salon_compare.report as report
 import salon_compare.store as store
@@ -18,13 +19,6 @@ from salon_compare.collect import (
 )
 from salon_compare.html_fetch import HttpxHtmlFetcher
 from salon_compare.html_parse import OpenHtmlParser
-from salon_compare.intake import (
-    IntakeStatus,
-    VenueCandidate,
-    apply_slot_choices,
-    candidate_label,
-    resolve_intake,
-)
 from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
@@ -35,6 +29,14 @@ from salon_compare.score import score_place
 llm = importlib.reload(llm)
 report = importlib.reload(report)
 store = importlib.reload(store)
+intake = importlib.reload(intake)
+MISSING_VENUE_ID = intake.MISSING_VENUE_ID
+MISSING_VENUE_LABEL = intake.MISSING_VENUE_LABEL
+IntakeStatus = intake.IntakeStatus
+VenueCandidate = intake.VenueCandidate
+apply_slot_choices = intake.apply_slot_choices
+candidate_label = intake.candidate_label
+resolve_intake = intake.resolve_intake
 LlmUsage = llm.LlmUsage
 NullLlm = llm.NullLlm
 estimated_usd_parts = llm.estimated_usd_parts
@@ -68,6 +70,14 @@ st.set_page_config(page_title="salon-compare", layout="wide")
 st.title("salon-compare")
 st.write("Введите три зацепки — по одной на точку.")
 
+
+def _resolver() -> MapsSearchResolver:
+    return MapsSearchResolver(
+        map_api_from_env(),
+        RbcBrandLookup(HttpxHtmlFetcher()),
+    )
+
+
 _saved = list_runs()
 if _saved:
     _ids = [item[0] for item in _saved]
@@ -94,9 +104,9 @@ if _saved:
             st.session_state.pop("outcome", None)
             st.session_state.pop("llm_error", None)
 
-hook_one = st.text_input("Зацепка 1")
-hook_two = st.text_input("Зацепка 2")
-hook_three = st.text_input("Зацепка 3")
+hook_one = st.text_input("Зацепка 1", key="hook-1")
+hook_two = st.text_input("Зацепка 2", key="hook-2")
+hook_three = st.text_input("Зацепка 3", key="hook-3")
 
 
 def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
@@ -106,8 +116,10 @@ def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
     return venue_id
 
 
-def _radio_format(slot: list[VenueCandidate]) -> Callable[[str], str]:
+def _pick_format(slot: list[VenueCandidate]) -> Callable[[str], str]:
     def _fmt(venue_id: str) -> str:
+        if venue_id == MISSING_VENUE_ID:
+            return MISSING_VENUE_LABEL
         return _card_label(slot, venue_id)
 
     return _fmt
@@ -125,13 +137,6 @@ def _org_format(orgs: tuple[LegalOrg, ...]) -> Callable[[str], str]:
         return _org_label(orgs, ogrn)
 
     return _fmt
-
-
-def _resolver() -> MapsSearchResolver:
-    return MapsSearchResolver(
-        map_api_from_env(),
-        RbcBrandLookup(HttpxHtmlFetcher()),
-    )
 
 
 _CELL_EDIT_CSS = """
@@ -387,20 +392,17 @@ elif outcome is not None:
         for index, slot in enumerate(outcome.candidates_by_slot):
             st.markdown(f"Зацепка {index + 1}")
             if not slot:
-                st.write("На картах ничего не нашли. Уточните зацепку.")
-            elif len(slot) == 1:
-                item = slot[0]
-                st.write(candidate_label(item))
-            else:
-                options = [item.venue_id for item in slot]
-                picked = st.radio(
-                    "Выберите карточку по ссылке",
-                    options,
-                    format_func=_radio_format(slot),
-                    key=f"pick-{index}",
-                )
-                if picked is not None:
-                    choices[index] = str(picked)
+                st.write(MISSING_VENUE_LABEL)
+                continue
+            options = [item.venue_id for item in slot] + [MISSING_VENUE_ID]
+            picked = st.radio(
+                "Выберите карточку по ссылке",
+                options,
+                format_func=_pick_format(slot),
+                key=f"pick-{index}",
+            )
+            if picked is not None:
+                choices[index] = str(picked)
         if st.button("Подтвердить точки"):
             st.session_state["outcome"] = apply_slot_choices(outcome, choices)
             st.rerun()

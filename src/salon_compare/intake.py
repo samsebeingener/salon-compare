@@ -9,6 +9,9 @@ from typing import Protocol
 
 from salon_compare.hooks import ClassifiedHook, classify_hook
 
+MISSING_VENUE_ID = "__missing__"
+MISSING_VENUE_LABEL = "Нужный вариант не найден. Попробуйте добавить иные зацепки."
+
 
 class IntakeStatus(StrEnum):
     NEED_THREE = "need_three"
@@ -77,7 +80,7 @@ def _finish_slots(
         IntakeStatus.READY,
         classified,
         slots,
-        "Три разные точки.",
+        "Разные точки.",
         chosen,
     )
 
@@ -94,27 +97,28 @@ def resolve_intake(raw_hooks: Sequence[str], resolver: VenueResolver) -> IntakeO
             None,
         )
     slots = [list(resolver.resolve(hook)) for hook in classified]
-    return _finish_slots(classified, slots)
+    return IntakeOutcome(
+        IntakeStatus.NEED_DISAMBIGUATION,
+        classified,
+        slots,
+        "Уточните точку по ссылкам. Сами не выбираем.",
+        None,
+    )
 
 
 def apply_slot_choices(
     outcome: IntakeOutcome,
     choices: dict[int, str],
 ) -> IntakeOutcome:
+    hooks: list[ClassifiedHook] = []
     slots: list[list[VenueCandidate]] = []
     for index, slot in enumerate(outcome.candidates_by_slot):
-        if len(slot) == 1:
-            slots.append(slot)
-            continue
         if len(slot) == 0:
-            return IntakeOutcome(
-                IntakeStatus.NEED_DISAMBIGUATION,
-                outcome.classified,
-                outcome.candidates_by_slot,
-                "Уточните зацепку: на картах ничего не нашли.",
-                None,
-            )
-        picked = [item for item in slot if item.venue_id == choices.get(index)]
+            continue
+        choice = choices.get(index)
+        if choice == MISSING_VENUE_ID:
+            continue
+        picked = [item for item in slot if item.venue_id == choice]
         if len(picked) != 1:
             return IntakeOutcome(
                 IntakeStatus.NEED_DISAMBIGUATION,
@@ -123,5 +127,42 @@ def apply_slot_choices(
                 "Выберите точку по ссылке. Сами не выбираем.",
                 None,
             )
+        hooks.append(outcome.classified[index])
         slots.append(picked)
-    return _finish_slots(outcome.classified, slots)
+    if len(slots) < 2:
+        return IntakeOutcome(
+            IntakeStatus.NEED_DISAMBIGUATION,
+            outcome.classified,
+            outcome.candidates_by_slot,
+            MISSING_VENUE_LABEL + " Для сравнения нужны хотя бы две точки.",
+            None,
+        )
+    return _finish_slots(hooks, slots)
+
+
+def replace_slot_search(
+    outcome: IntakeOutcome,
+    slot_index: int,
+    raw: str,
+    resolver: VenueResolver,
+) -> IntakeOutcome:
+    query = raw.strip()
+    if slot_index < 0 or slot_index >= len(outcome.classified) or not query:
+        return IntakeOutcome(
+            IntakeStatus.NEED_DISAMBIGUATION,
+            outcome.classified,
+            outcome.candidates_by_slot,
+            "Укажите новую зацепку для этой точки.",
+            None,
+        )
+    classified = list(outcome.classified)
+    classified[slot_index] = classify_hook(query)
+    slots = [list(slot) for slot in outcome.candidates_by_slot]
+    slots[slot_index] = list(resolver.resolve(classified[slot_index]))
+    return IntakeOutcome(
+        IntakeStatus.NEED_DISAMBIGUATION,
+        classified,
+        slots,
+        "Уточните точку по ссылкам. Сами не выбираем.",
+        None,
+    )

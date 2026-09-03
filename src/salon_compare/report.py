@@ -28,6 +28,9 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("egrul_registered_at", "ЕГРЮЛ/ЕГРИП дата"),
     ("egrul_status", "ЕГРЮЛ/ЕГРИП статус"),
     ("egrul_activity", "ЕГРЮЛ/ЕГРИП деятельность"),
+    ("fedresurs", "Федресурс"),
+    ("kad", "КАД арбитраж"),
+    ("efrsb", "ЕФРСБ банкротства"),
 )
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(name for name, _ in FIELD_LABELS)
@@ -47,6 +50,7 @@ EVIDENCE_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("egrul_activity", "ЕГРЮЛ/ЕГРИП деятельность"),
     ("fedresurs", "Федресурс"),
     ("kad", "КАД арбитраж"),
+    ("efrsb", "ЕФРСБ банкротства"),
     ("twogis_last_review", "2ГИС дата последнего отзыва"),
     ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
     ("twogis_plus_minus", "2ГИС плюс/минус"),

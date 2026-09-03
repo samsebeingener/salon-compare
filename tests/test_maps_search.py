@@ -4,6 +4,7 @@ from pathlib import Path
 
 from salon_compare.hooks import classify_hook, search_query
 from salon_compare.intake import (
+    MISSING_VENUE_ID,
     IntakeStatus,
     VenueCandidate,
     apply_slot_choices,
@@ -90,10 +91,39 @@ def test_confirming_one_card_makes_ready() -> None:
             ),
         ),
     )
-    confirmed = apply_slot_choices(outcome, {1: "twogis:b"})
+    confirmed = apply_slot_choices(
+        outcome,
+        {0: "twogis:1", 1: "twogis:b", 2: "twogis:2"},
+    )
     assert confirmed.status is IntakeStatus.READY
     assert confirmed.chosen_venues is not None
     assert confirmed.chosen_venues[1].venue_id == "twogis:b"
+
+
+def test_missing_choice_keeps_other_slots() -> None:
+    a = VenueCandidate("twogis:a", "Вишня 1", "https://2gis.ru/firm/a", "twogis")
+    b = VenueCandidate("twogis:b", "Вишня 2", "https://2gis.ru/firm/b", "twogis")
+    one = VenueCandidate("twogis:1", "Одна", "https://2gis.ru/firm/1", "twogis")
+    two = VenueCandidate("twogis:2", "Две", "https://2gis.ru/firm/2", "twogis")
+    outcome = resolve_intake(
+        [PINK, VISHNYA, OGRN],
+        MapsSearchResolver(
+            FakeCatalog(
+                {
+                    search_query(classify_hook(PINK)): [one],
+                    search_query(classify_hook(VISHNYA)): [a, b],
+                    search_query(classify_hook(OGRN)): [two],
+                }
+            ),
+        ),
+    )
+    stuck = apply_slot_choices(
+        outcome,
+        {0: "twogis:1", 1: "twogis:b", 2: MISSING_VENUE_ID},
+    )
+    assert stuck.status is IntakeStatus.READY
+    assert stuck.chosen_venues is not None
+    assert [item.venue_id for item in stuck.chosen_venues] == ["twogis:1", "twogis:b"]
 
 
 def test_empty_maps_demo_trio_is_ready() -> None:
@@ -101,9 +131,14 @@ def test_empty_maps_demo_trio_is_ready() -> None:
         [PINK, VISHNYA, OGRN],
         MapsSearchResolver(FakeCatalog({})),
     )
-    assert outcome.status is IntakeStatus.READY
-    assert outcome.chosen_venues is not None
-    ids = [item.venue_id for item in outcome.chosen_venues]
+    assert outcome.status is IntakeStatus.NEED_DISAMBIGUATION
+    picks = {
+        index: slot[0].venue_id for index, slot in enumerate(outcome.candidates_by_slot)
+    }
+    confirmed = apply_slot_choices(outcome, picks)
+    assert confirmed.status is IntakeStatus.READY
+    assert confirmed.chosen_venues is not None
+    ids = [item.venue_id for item in confirmed.chosen_venues]
     assert ids[0].startswith("website:")
     assert ids[1].startswith("name:")
     assert ids[2].startswith("ogrn:")
@@ -230,6 +265,8 @@ def test_app_uses_search_resolver_and_confirmation() -> None:
     assert "PassthroughResolver" not in text
     assert "st.radio" in text
     assert "apply_slot_choices" in text
+    assert "MISSING_VENUE_LABEL" in text
+    assert "Искать снова" not in text
     assert "candidate_label" in text
     intake = (ROOT / "src" / "salon_compare" / "intake.py").read_text(encoding="utf-8")
     assert "PassthroughResolver" not in intake
