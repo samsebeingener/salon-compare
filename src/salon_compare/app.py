@@ -30,7 +30,6 @@ from salon_compare.report import (
     EDITABLE_FIELDS,
     FIELD_LABELS,
     ModelVerdict,
-    card_payload,
     complete_verdict,
     mark_unreliable,
     patch_field,
@@ -154,7 +153,6 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             "ЕГРЮЛ/ЕГРИП статус",
             "ЕГРЮЛ/ЕГРИП деятельность",
             "Индекс 50/25/25",
-            "Индекс пояснение",
         ]
     }
     for row in rows:
@@ -174,7 +172,6 @@ def _show_table(rows: list[PlaceRecord]) -> None:
             _legal_cell(row, row.egrul_status),
             _legal_cell(row, row.egrul_activity),
             index_cell,
-            scored.note,
         ]
     st.table(table)
     st.caption("Ориентир по формуле, не инвестиционный совет.")
@@ -206,21 +203,6 @@ def _replace_working(index: int, row: PlaceRecord) -> None:
     saved = st.session_state.get("saved_rows")
     if isinstance(saved, list) and len(saved) == len(current):
         st.session_state["saved_rows"] = current
-
-
-def _show_cards(rows: list[PlaceRecord]) -> None:
-    st.subheader("Карточки")
-    for row in rows:
-        scored = score_place(row)
-        card = card_payload(row, scored)
-        mark = " · недостоверный" if card["unreliable"] else ""
-        index_text = "не найдено" if card["index"] is None else str(card["index"])
-        st.markdown(f"**{card['title']}**{mark}")
-        st.write(f"Индекс: {index_text}. {card['note']}")
-        for item in card["fields"]:
-            st.write(f"{item['label']}: {item['text']}")
-        if card["missing"]:
-            st.write("Не нашли: " + ", ".join(card["missing"]))
 
 
 def _show_corrections(rows: list[PlaceRecord]) -> None:
@@ -313,7 +295,6 @@ def _show_usage() -> None:
 
 def _show_report(rows: list[PlaceRecord]) -> None:
     _show_table(rows)
-    _show_cards(rows)
     _show_corrections(rows)
     _show_verdict(rows)
     _show_usage()

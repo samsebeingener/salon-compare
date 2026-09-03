@@ -46,6 +46,6 @@ def test_app_still_has_delivery_screen() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
     assert "Зацепка 1" in text
-    assert "Карточки" in text
+    assert "Поля точек" in text
     assert "Сохранённые разборы" in text
     assert "покупай" not in lowered
