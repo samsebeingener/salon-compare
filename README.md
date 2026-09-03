@@ -9,12 +9,14 @@
 ```text
 git clone https://github.com/samsebeingener/salon-compare.git
 cd salon-compare
-cp .env.example .env
 ```
 
-Локально:
+На Windows можно двойным щелчком запустить **`START.bat`**: проверит `.env`, спросит пустые ключи (значения не печатает), поднимет Docker Compose или локальный Streamlit и откроет http://127.0.0.1:8501. Нужны Python 3 и Docker Desktop; если `docker` недоступен — запасной запуск через `uv`. Повторный запуск снова проверяет файл и пустые поля.
+
+Вручную:
 
 ```text
+cp .env.example .env
 uv sync --group dev
 uv run python scripts/run_quality.py
 uv run streamlit run src/salon_compare/app.py
@@ -22,7 +24,7 @@ uv run streamlit run src/salon_compare/app.py
 
 Локальный Streamlit читает ключи из `.env` в корне проекта. Уже заданные переменные окружения не перезаписывает. В git файл `.env` не попадает.
 
-Сдача заказчику (клон + `.env` по образцу + одна команда):
+Сдача заказчику (клон + `START.bat` или `.env` по образцу + одна команда):
 
 ```text
 docker compose up --build
