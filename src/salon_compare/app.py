@@ -2,6 +2,7 @@
 
 import importlib
 from collections.abc import Callable
+from html import escape
 from typing import cast
 
 import streamlit as st
@@ -63,7 +64,7 @@ footnote_map = report.footnote_map
 mark_unreliable = report.mark_unreliable
 patch_field = report.patch_field
 rows_fingerprint = report.rows_fingerprint
-table_cell = report.table_cell
+table_cell_parts = report.table_cell_parts
 collect_cache_key = store.collect_cache_key
 list_runs = store.list_runs
 load_run = store.load_run
@@ -160,8 +161,23 @@ div[class*="st-key-cell-"] button:hover [data-testid="stIconMaterial"],
 div[class*="st-key-cell-"] button:focus-visible [data-testid="stIconMaterial"] {
   opacity: 1;
 }
+.sc-cell-value {
+  font-size: 1.12em;
+}
+.sc-cell-ref {
+  font-weight: 400;
+  font-size: 1em;
+}
 </style>
 """
+
+
+def _field_cell_html(body: str, marks: str) -> str:
+    value = f'<span class="sc-cell-value">{escape(body)}</span>'
+    if not marks:
+        return f'<div class="sc-cell">{value}</div>'
+    ref = f'<span class="sc-cell-ref">{escape(marks)}</span>'
+    return f'<div class="sc-cell">{value} {ref}</div>'
 
 
 def _show_footnotes(mapping: dict[str, int]) -> None:
@@ -174,6 +190,9 @@ def _show_footnotes(mapping: dict[str, int]) -> None:
             st.markdown(f"**[{number}]** [{url}]({url})")
         else:
             st.markdown(f"**[{number}]** {url}")
+    st.caption(
+        "Если ссылка не открывается, попробуйте открыть её без использования proxy/vpn."
+    )
 
 
 @st.dialog("Править поле")
@@ -214,7 +233,7 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     st.subheader("Поля точек")
     st.markdown(_CELL_EDIT_CSS, unsafe_allow_html=True)
     notes = footnote_map(rows)
-    widths = [1.35] + [1] * len(rows)
+    widths = [2.2] + [1] * len(rows)
     header = st.columns(widths)
     header[0].markdown("**Поле**")
     for index, row in enumerate(rows):
@@ -224,8 +243,14 @@ def _show_table(rows: list[PlaceRecord]) -> None:
         cols = st.columns(widths)
         cols[0].write(label)
         for index, row in enumerate(rows):
-            if cols[index + 1].button(
-                table_cell(row, name, notes),
+            body, marks = table_cell_parts(row, name, notes)
+            value_col, edit_col = cols[index + 1].columns([8, 1], gap="small")
+            value_col.markdown(
+                _field_cell_html(body, marks),
+                unsafe_allow_html=True,
+            )
+            if edit_col.button(
+                "\u200b",
                 key=f"cell-{index}-{name}",
                 icon=":material/edit:",
                 help=cell_help(row, name),
@@ -235,8 +260,10 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     scored_cols[0].write("Индекс 50/25/25")
     for index, row in enumerate(rows):
         scored = score_place(row)
-        scored_cols[index + 1].write(
-            "не найдено" if scored.index is None else str(scored.index)
+        index_text = "не найдено" if scored.index is None else str(scored.index)
+        scored_cols[index + 1].markdown(
+            _field_cell_html(index_text, ""),
+            unsafe_allow_html=True,
         )
     _show_footnotes(notes)
     st.caption("Ориентир по формуле, не инвестиционный совет.")

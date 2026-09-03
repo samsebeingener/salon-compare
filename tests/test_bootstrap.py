@@ -31,6 +31,16 @@ def test_readme_documents_rf_llm_proxy() -> None:
     assert "127.0.0.1:8080" not in text
 
 
+def test_readme_documents_official_twogis_key() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    lowered = text.lower()
+    assert "как получить ключ api 2гис" in lowered
+    assert "TWOGIS_API_KEY" in text
+    assert "docs.2gis.com" in text
+    assert "platform.2gis.com" in text
+    assert "Places API" in text or "places api" in lowered
+
+
 def test_httpx_client_trusts_env_proxy() -> None:
     from salon_compare.proxy import httpx_client_kwargs
 
