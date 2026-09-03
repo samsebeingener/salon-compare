@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date
 from enum import StrEnum
 from typing import Protocol
 from urllib.parse import quote_plus, urlparse
@@ -437,18 +436,6 @@ def _empty_place(venue: VenueCandidate) -> PlaceRecord:
     )
 
 
-def _mark_90d(last: SourcedField, as_of: date) -> SourcedField:
-    if last.trust is Trust.MISSING or last.value is None:
-        return _missing()
-    raw = str(last.value)[:10]
-    try:
-        parsed = date.fromisoformat(raw)
-    except ValueError:
-        return _missing()
-    flag = "да" if (as_of - parsed).days <= 90 else "нет"
-    return SourcedField(value=flag, source_url=last.source_url, trust=last.trust)
-
-
 def _venue_address(address: SourcedField, fallback: str | None) -> str | None:
     if address.trust is Trust.FOUND and isinstance(address.value, str):
         return address.value
@@ -536,7 +523,6 @@ def collect_place(
         extra_inn=site_inn,
         site_ogrn_url=site_ogrn_url,
     )
-    as_of = date.today()
     hours = _field(
         twogis.hours,
         twogis.source_url,
@@ -545,22 +531,7 @@ def collect_place(
         html,
         deps.parser,
     )
-    twogis_last = _field(
-        twogis.last_review,
-        twogis.source_url,
-        twogis.html_url,
-        lambda item: item.last_review,
-        html,
-        deps.parser,
-    )
-    twogis_pm = _field(
-        twogis.plus_minus,
-        twogis.source_url,
-        twogis.html_url,
-        lambda item: item.plus_minus,
-        html,
-        deps.parser,
-    )
+    gap = _missing()
 
     return PlaceRecord(
         venue_id=venue.venue_id,
@@ -578,9 +549,9 @@ def collect_place(
         kad=legal.kad,
         legal_candidates=legal.candidates,
         hours=hours,
-        twogis_last_review=twogis_last,
-        twogis_reviews_90d=_mark_90d(twogis_last, as_of),
-        twogis_plus_minus=twogis_pm,
+        twogis_last_review=gap,
+        twogis_reviews_90d=gap,
+        twogis_plus_minus=gap,
         district=(
             _found(twogis.district, twogis.source_url)
             if twogis.district

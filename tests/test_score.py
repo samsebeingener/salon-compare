@@ -45,9 +45,9 @@ def _block(score: object, name: str) -> object:
     raise AssertionError(name)
 
 
-def test_high_rating_many_reviews_is_plus_three_without_freshness() -> None:
+def test_high_rating_is_plus_three_without_review_fields() -> None:
     score = score_place(
-        _place(twogis_rating=_found(4.9), twogis_review_count=_found(80)),
+        _place(twogis_rating=_found(4.9)),
         as_of=AS_OF,
     )
     rep = _block(score, "reputation")
@@ -57,21 +57,12 @@ def test_high_rating_many_reviews_is_plus_three_without_freshness() -> None:
 
 def test_rating_four_point_two_is_plus_two() -> None:
     score = score_place(
-        _place(twogis_rating=_found(4.2), twogis_review_count=_found(20)),
+        _place(twogis_rating=_found(4.2)),
         as_of=AS_OF,
     )
     rep = _block(score, "reputation")
     assert getattr(rep, "points") == 2
     assert score.index == round(100 * 0.5 * (2 / 3), 1)
-
-
-def test_high_rating_few_reviews_is_plus_two() -> None:
-    score = score_place(
-        _place(twogis_rating=_found(4.9), twogis_review_count=_found(5)),
-        as_of=AS_OF,
-    )
-    rep = _block(score, "reputation")
-    assert getattr(rep, "points") == 2
 
 
 def test_egrul_age_scores_stability_without_courts() -> None:
@@ -130,3 +121,7 @@ def test_app_shows_index_not_buy_advice() -> None:
     assert "индекс" in lowered
     assert "покупай" not in lowered
     assert "не совет" in lowered or "не инвестицион" in lowered
+    assert "последний отзыв" not in text
+    assert "отзывы за 90" not in text
+    assert "плюс/минус" not in text
+    assert "2ГИС отзывы" not in text

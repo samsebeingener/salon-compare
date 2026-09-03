@@ -45,7 +45,6 @@ class PlaceScore(BaseModel):
 
 class _Fields(Protocol):
     twogis_rating: SourcedField
-    twogis_review_count: SourcedField
     egrul_registered_at: SourcedField
     egrul_status: SourcedField
 
@@ -115,30 +114,19 @@ def _reputation(row: _Fields) -> BlockScore:
             points=None,
             reason="рейтинг карт не найден",
         )
-    if _too_negative(row):
-        return BlockScore(
-            name="reputation",
-            weight=weight,
-            points=0,
-            reason="много минусов в разбивке",
-        )
-    count = _numeric(row.twogis_review_count)
-    if chosen > 4.5 and count is not None and count >= 10:
+    if chosen > 4.5:
         return BlockScore(
             name="reputation",
             weight=weight,
             points=3,
-            reason="рейтинг выше 4.5 и ≥10 отзывов",
+            reason="рейтинг выше 4.5",
         )
     if chosen >= 4.0:
-        reason = "рейтинг 4.0–4.5"
-        if chosen > 4.5:
-            reason = "рейтинг выше 4.5, мало отзывов"
         return BlockScore(
             name="reputation",
             weight=weight,
             points=2,
-            reason=reason,
+            reason="рейтинг 4.0–4.5",
         )
     return BlockScore(
         name="reputation",
@@ -146,22 +134,6 @@ def _reputation(row: _Fields) -> BlockScore:
         points=1,
         reason="рейтинг ниже 4.0",
     )
-
-
-def _too_negative(row: _Fields) -> bool:
-    field = getattr(row, "twogis_plus_minus", None)
-    if not isinstance(field, SourcedField) or field.value is None:
-        return False
-    match = re.search(
-        r"(\d+)\s*плюс\s*/\s*(\d+)\s*минус",
-        str(field.value),
-        re.IGNORECASE,
-    )
-    if not match:
-        return False
-    plus_n = int(match.group(1))
-    minus_n = int(match.group(2))
-    return minus_n > 0 and minus_n >= plus_n
 
 
 def _stability(row: _Fields, as_of: date) -> BlockScore:
