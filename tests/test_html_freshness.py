@@ -135,14 +135,9 @@ def test_open_html_parser_reads_twogis_website_marker() -> None:
     assert extract.website == "http://vishnyasalon.ru"
 
 
-def test_high_rating_with_reviews_in_90_days_is_plus_three() -> None:
+def test_high_rating_is_plus_three_without_review_dates() -> None:
     score = score_place(
-        _place(
-            twogis_rating=_found(4.8),
-            twogis_review_count=_found(80),
-            twogis_last_review=_found("2026-08-01"),
-            twogis_reviews_90d=_found("да"),
-        ),
+        _place(twogis_rating=_found(4.8)),
         as_of=AS_OF,
     )
     rep = next(item for item in score.blocks if item.name == "reputation")
@@ -237,7 +232,6 @@ def test_app_shows_usage_and_new_fields() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
     assert "токен" in lowered
-    assert "90" in text
     assert "OpenHtmlParser" in text
     assert "покупай" not in lowered
 

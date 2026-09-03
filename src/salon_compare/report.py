@@ -16,13 +16,9 @@ HUMAN_SOURCE = "правка человека"
 
 FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("twogis_rating", "2ГИС рейтинг"),
-    ("twogis_review_count", "2ГИС отзывы"),
     ("hours", "Часы"),
     ("district", "Район"),
     ("metro", "Метро"),
-    ("twogis_last_review", "2ГИС последний отзыв"),
-    ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
-    ("twogis_plus_minus", "2ГИС плюс/минус"),
     ("address", "Адрес"),
     ("neighbor_count", "Соседи 500 м"),
     ("neighbor_vs", "Соседи выше/ниже"),
@@ -36,7 +32,6 @@ EDITABLE_FIELDS: tuple[str, ...] = tuple(name for name, _ in FIELD_LABELS)
 
 _NUMERIC_FIELDS = {
     "twogis_rating",
-    "twogis_review_count",
     "neighbor_count",
 }
 

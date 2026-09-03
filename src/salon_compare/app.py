@@ -143,13 +143,9 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     table: dict[str, list[str]] = {
         "Поле": [
             "2ГИС рейтинг",
-            "2ГИС отзывы",
             "Часы",
             "Район",
             "Метро",
-            "2ГИС последний отзыв",
-            "2ГИС отзывы за 90 дней",
-            "2ГИС плюс/минус",
             "Адрес",
             "Соседи 500 м",
             "Соседи выше/ниже",
@@ -167,13 +163,9 @@ def _show_table(rows: list[PlaceRecord]) -> None:
         heading = f"{row.title} · недостоверный" if row.unreliable else row.title
         table[heading] = [
             _cell(row.twogis_rating),
-            _cell(row.twogis_review_count),
             _cell(row.hours),
             _cell(row.district),
             _cell(row.metro),
-            _cell(row.twogis_last_review),
-            _cell(row.twogis_reviews_90d),
-            _cell(row.twogis_plus_minus),
             _cell(row.address),
             _cell(row.neighbor_count),
             _cell(row.neighbor_vs),

@@ -54,6 +54,8 @@ def test_app_table_has_no_yandex_columns() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     assert "Яндекс рейтинг" not in text
     assert "Яндекс отзывы" not in text
+    assert "2ГИС отзывы" not in text
+    assert "последний отзыв" not in text
     assert 'map_api_from_env("yandex")' not in text
 
 

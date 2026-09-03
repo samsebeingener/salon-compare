@@ -180,7 +180,7 @@ def list_runs(path: Path | None = None) -> list[tuple[int, str]]:
     return [(int(item[0]), str(item[1])) for item in found]
 
 
-COLLECT_CACHE_VERSION = "2026-09-03-no-fedresurs-kad"
+COLLECT_CACHE_VERSION = "2026-09-03-hide-review-fields"
 
 
 def collect_cache_key(
