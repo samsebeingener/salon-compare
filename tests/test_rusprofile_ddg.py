@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 
 from salon_compare.collect import (
     CollectDeps,
@@ -101,15 +101,23 @@ def _ddg_page(*cards: str) -> HtmlFetchResult:
 
 def test_ddg_url_has_ogrn_and_site_filter() -> None:
     url = ddg_rusprofile_url(OGRN)
+    decoded = unquote(url)
     assert url.startswith("https://html.duckduckgo.com/html/?q=")
     assert quote_plus(OGRN) in url or OGRN in url
-    assert "rusprofile.ru" in url
-    assert "site" in url
+    assert "site:rusprofile.ru" in decoded
+    assert "rusprofile.ru/id" not in decoded
 
 
 def test_rusprofile_card_urls_keep_id_order() -> None:
     html = f'<a href="{CARD_WRONG}"></a><a href="{CARD_OK}"></a>'
     assert rusprofile_card_urls(html) == [CARD_WRONG, CARD_OK]
+
+
+def test_rusprofile_card_urls_include_ip_path() -> None:
+    ogrnip = "319774600285920"
+    ip_card = f"https://www.rusprofile.ru/ip/{ogrnip}"
+    html = f'<a href="{ip_card}">ип</a>'
+    assert rusprofile_card_urls(html) == [ip_card]
 
 
 def test_egrul_empty_fills_weak_from_rusprofile() -> None:

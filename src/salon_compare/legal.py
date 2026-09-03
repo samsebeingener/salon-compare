@@ -74,7 +74,7 @@ def kad_url(ogrn: str) -> str:
 
 
 def ddg_rusprofile_url(ogrn: str) -> str:
-    query = f"{ogrn} site:rusprofile.ru/id"
+    query = f"{ogrn} site:rusprofile.ru"
     return f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
 
 
@@ -90,9 +90,10 @@ def rbc_company_snippet(html: str, ogrn: str) -> str | None:
         if idx < 0:
             return None
         chunk = html[idx : idx + 5000]
-        has_id = f"/id/{ogrn}-" in chunk
+        has_company = f"/id/{ogrn}-" in chunk
+        has_person = f"/persons/ogrnip/{ogrn}-" in chunk
         has_label = bool(re.search(r"огрн", chunk, re.IGNORECASE))
-        if ogrn in chunk and (has_id or has_label):
+        if ogrn in chunk and (has_company or has_person or has_label):
             return chunk
         start = idx + len(needle)
 
@@ -110,11 +111,20 @@ def rbc_brand_names(html: str, ogrn: str) -> list[str]:
         return []
     text = unescape(re.sub(r"<[^>]+>", " ", match.group(1)))
     text = re.sub(r"\s+", " ", text).strip()
-    return [text] if text else []
+    if not text:
+        return []
+    names = [text]
+    stripped = re.sub(r"^ИП\s+", "", text, flags=re.IGNORECASE).strip()
+    if stripped and stripped not in names:
+        names.append(stripped)
+    first = stripped.split()[0] if stripped else ""
+    if len(first) >= 5 and first not in names:
+        names.append(first)
+    return names
 
 
-_RUSPROFILE_ID = re.compile(
-    r"(?:https?://)?(?:www\.)?rusprofile\.ru/id/(\d+)",
+_RUSPROFILE_CARD = re.compile(
+    r"(?:https?://)?(?:www\.)?rusprofile\.ru/(id|ip)/(\d+)",
     re.IGNORECASE,
 )
 
@@ -123,8 +133,9 @@ def rusprofile_card_urls(html: str) -> list[str]:
     decoded = unquote(html)
     seen: set[str] = set()
     urls: list[str] = []
-    for match in _RUSPROFILE_ID.finditer(decoded):
-        url = f"https://www.rusprofile.ru/id/{match.group(1)}"
+    for match in _RUSPROFILE_CARD.finditer(decoded):
+        kind = match.group(1).lower()
+        url = f"https://www.rusprofile.ru/{kind}/{match.group(2)}"
         if url in seen:
             continue
         seen.add(url)

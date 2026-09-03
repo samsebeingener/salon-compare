@@ -21,6 +21,7 @@ from salon_compare.legal import (
     rbc_company_snippet,
     rbc_search_url,
 )
+from salon_compare.site_enrichment import rbc_company_card_url
 
 ROOT = Path(__file__).resolve().parents[1]
 OGRN = "1147746349552"
@@ -47,6 +48,22 @@ RBC_CARD = """
 RBC_HEADING_ONLY = """
 <h3>Результаты по запросу &laquo;1147746349552&raquo; <small>0</small></h3>
 <div id="common-react-root"></div>
+"""
+
+OGRNIP = "319774600285920"
+RBC_IP_HREF = (
+    "https://companies.rbc.ru/persons/ogrnip/319774600285920-glovskij-igor-dmitrievich/"
+)
+RBC_IP_CARD = f"""
+<div class="company-card info-card">
+<span class="company-status-badge company-status-badge--green">Действует</span>
+<a class="company-name-highlight" href="{RBC_IP_HREF}">ИП Гловский Игорь Дмитриевич</a>
+<p class="company-card__info"><span>Дата регистрации:</span>08.05.2019</p>
+<p class="company-card__info"><span>ОГРНИП:</span><em>{OGRNIP}</em></p>
+<div class="category-breadcrumb">
+<span class="category-breadcrumb__item">Парикмахерские и салоны красоты</span>
+</div>
+</div>
 """
 
 
@@ -203,3 +220,49 @@ def test_readme_mentions_rbc_search() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
     assert "companies.rbc.ru" in text
     assert "query" in text
+    assert "ogrnip" in text or "огрнип" in text
+
+
+def test_rbc_ip_snippet_and_brand_from_persons_href() -> None:
+    assert rbc_company_snippet(RBC_IP_CARD, OGRNIP) is not None
+    assert rbc_company_card_url(RBC_IP_CARD, OGRNIP) == RBC_IP_HREF
+    names = rbc_brand_names(RBC_IP_CARD, OGRNIP)
+    assert "ИП Гловский Игорь Дмитриевич" in names
+    assert "Гловский Игорь Дмитриевич" in names
+
+
+def test_egrul_empty_fills_weak_from_rbc_ogrnip() -> None:
+    search = rbc_search_url(OGRNIP)
+    html = FakeHtml(
+        {
+            egrul_url(OGRNIP): HtmlFetchResult("blocked", "captcha", egrul_url(OGRNIP)),
+            search: HtmlFetchResult("ok", RBC_IP_CARD, search),
+        }
+    )
+    venue = VenueCandidate("ogrn:" + OGRNIP, OGRNIP, egrul_url(OGRNIP), "ogrn")
+    deps = _deps(html, legal=MarkerLegalParser())
+    place = collect_place(venue, classify_hook(OGRNIP), deps)
+    assert place.egrul_status.value == "действует"
+    assert place.egrul_registered_at.value == "08.05.2019"
+    assert place.egrul_status.source_url == search
+    assert place.egrul_status.trust is Trust.WEAK
+    assert "Парикмахерские" in str(place.egrul_activity.value)
+    assert ddg_rusprofile_url(OGRNIP) not in html.calls
+
+
+def test_egrul_fills_from_rbc_ogrnip_card_when_search_has_only_href() -> None:
+    search = rbc_search_url(OGRNIP)
+    listing = f'<a href="{RBC_IP_HREF}">ИП</a>'
+    html = FakeHtml(
+        {
+            egrul_url(OGRNIP): HtmlFetchResult("blocked", "captcha", egrul_url(OGRNIP)),
+            search: HtmlFetchResult("ok", listing, search),
+            RBC_IP_HREF: HtmlFetchResult("ok", RBC_IP_CARD, RBC_IP_HREF),
+        }
+    )
+    venue = VenueCandidate("ogrn:" + OGRNIP, OGRNIP, egrul_url(OGRNIP), "ogrn")
+    deps = _deps(html, legal=MarkerLegalParser())
+    place = collect_place(venue, classify_hook(OGRNIP), deps)
+    assert place.egrul_status.source_url == RBC_IP_HREF
+    assert place.egrul_status.trust is Trust.WEAK
+    assert RBC_IP_HREF in html.calls

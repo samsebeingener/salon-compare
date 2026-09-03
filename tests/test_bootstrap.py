@@ -16,6 +16,12 @@ def test_env_example_lists_required_keys() -> None:
     assert "127.0.0.1:8080" not in text
 
 
+def test_readme_documents_start_bat() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "START.bat" in text
+    assert "127.0.0.1:8501" in text
+
+
 def test_readme_documents_rf_llm_proxy() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "HTTP_PROXY" in text
