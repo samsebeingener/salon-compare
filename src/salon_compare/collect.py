@@ -20,9 +20,7 @@ from salon_compare.legal import (
     LegalParser,
     ddg_rusprofile_url,
     egrul_url,
-    fedresurs_url,
     is_ogrn,
-    kad_url,
     labeled_inn,
     labeled_ogrn,
     rbc_company_snippet,
@@ -626,23 +624,6 @@ def _inn_hits(
     return _inn_hits_from_value(hook.normalized, html, parser)
 
 
-def _registry_text(
-    url: str,
-    html: HtmlFetcher,
-    pick: Callable[[str], str | None],
-    needle: str,
-) -> SourcedField:
-    page = html.get(url)
-    if page.status != "ok":
-        return _missing()
-    if needle not in page.body:
-        return _missing()
-    value = pick(page.body)
-    if value is None:
-        return _missing()
-    return _found(value, url)
-
-
 def _official_egrul(
     org: LegalOrg,
     html: HtmlFetcher,
@@ -801,14 +782,7 @@ def _collect_legal(
             site_ogrn_url,
             gap,
         )
-    fedresurs = _registry_text(
-        fedresurs_url(org.ogrn),
-        html,
-        parser.parse_fedresurs,
-        org.ogrn,
-    )
-    kad = _registry_text(kad_url(org.ogrn), html, parser.parse_kad, org.ogrn)
-    return _LegalBundle((), registered, status, activity, fedresurs, kad)
+    return _LegalBundle((), registered, status, activity, gap, gap)
 
 
 def collect_three(

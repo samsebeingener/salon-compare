@@ -1,4 +1,4 @@
-"""Индекс 40/25/20/15. Нет данных — не ноль."""
+"""Индекс 50/25/25. Нет данных — не ноль. Федресурс и КАД не входят."""
 
 from __future__ import annotations
 
@@ -12,18 +12,17 @@ from salon_compare.collect import SourcedField, Trust
 
 _DOT_DATE = re.compile(r"(\d{2})\.(\d{2})\.(\d{4})")
 _ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_METRO_METERS = re.compile(r",\s*(\d+)\s*м")
 
 WEIGHTS = {
-    "reputation": 0.40,
+    "reputation": 0.50,
     "stability": 0.25,
-    "location": 0.20,
-    "scale": 0.15,
+    "location": 0.25,
 }
 MAX_POINTS = {
     "reputation": 3,
-    "stability": 4,
+    "stability": 3,
     "location": 3,
-    "scale": 3,
 }
 
 
@@ -48,27 +47,15 @@ class _Fields(Protocol):
     twogis_rating: SourcedField
     twogis_review_count: SourcedField
     egrul_registered_at: SourcedField
-    fedresurs: SourcedField
-    kad: SourcedField
+    egrul_status: SourcedField
 
 
 def score_place(row: _Fields, as_of: date | None = None) -> PlaceScore:
     today = as_of or date.today()
-    reputation = _reputation(row, today)
+    reputation = _reputation(row)
     stability = _stability(row, today)
-    location = BlockScore(
-        name="location",
-        weight=WEIGHTS["location"],
-        points=None,
-        reason="тип точки (улица/ТЦ/ЖК) не найден",
-    )
-    scale = BlockScore(
-        name="scale",
-        weight=WEIGHTS["scale"],
-        points=None,
-        reason="число мастеров и прайс не найдены",
-    )
-    blocks = (reputation, stability, location, scale)
+    location = _location(row)
+    blocks = (reputation, stability, location)
     if getattr(row, "unreliable", False):
         return PlaceScore(
             index=None,
@@ -96,7 +83,6 @@ def score_place(row: _Fields, as_of: date | None = None) -> PlaceScore:
             "reputation": "репутация",
             "stability": "устойчивость",
             "location": "локация",
-            "scale": "масштаб",
         }
         named = ", ".join(labels[name] for name in holes)
         note = (
@@ -119,7 +105,7 @@ def _text(field: SourcedField) -> str:
     return str(field.value).lower()
 
 
-def _reputation(row: _Fields, as_of: date) -> BlockScore:
+def _reputation(row: _Fields) -> BlockScore:
     weight = WEIGHTS["reputation"]
     chosen = _numeric(row.twogis_rating)
     if chosen is None:
@@ -129,26 +115,25 @@ def _reputation(row: _Fields, as_of: date) -> BlockScore:
             points=None,
             reason="рейтинг карт не найден",
         )
-    if _too_negative(row, "twogis"):
+    if _too_negative(row):
         return BlockScore(
             name="reputation",
             weight=weight,
             points=0,
             reason="много минусов в разбивке",
         )
-    fresh = _fresh_90(row, as_of)
     count = _numeric(row.twogis_review_count)
-    if chosen > 4.5 and fresh and count is not None and count >= 10:
+    if chosen > 4.5 and count is not None and count >= 10:
         return BlockScore(
             name="reputation",
             weight=weight,
             points=3,
-            reason="рейтинг выше 4.5 и отзывы за 90 дней",
+            reason="рейтинг выше 4.5 и ≥10 отзывов",
         )
     if chosen >= 4.0:
-        reason = "рейтинг без даты свежести, +3 не ставим"
-        if fresh:
-            reason = "рейтинг 4.0–4.5 или мало отзывов"
+        reason = "рейтинг 4.0–4.5"
+        if chosen > 4.5:
+            reason = "рейтинг выше 4.5, мало отзывов"
         return BlockScore(
             name="reputation",
             weight=weight,
@@ -163,27 +148,8 @@ def _reputation(row: _Fields, as_of: date) -> BlockScore:
     )
 
 
-def _review_day(row: _Fields, name: str) -> date | None:
-    field = getattr(row, name, None)
-    if not isinstance(field, SourcedField):
-        return None
-    if field.trust is Trust.MISSING or field.value is None:
-        return None
-    return _parse_date(str(field.value))
-
-
-def _fresh_90(row: _Fields, today: date) -> bool:
-    flag = getattr(row, "twogis_reviews_90d", None)
-    if isinstance(flag, SourcedField) and str(flag.value).lower() == "да":
-        return True
-    day = _review_day(row, "twogis_last_review")
-    if day is None:
-        return False
-    return (today - day).days <= 90
-
-
-def _too_negative(row: _Fields, prefix: str) -> bool:
-    field = getattr(row, f"{prefix}_plus_minus", None)
+def _too_negative(row: _Fields) -> bool:
+    field = getattr(row, "twogis_plus_minus", None)
     if not isinstance(field, SourcedField) or field.value is None:
         return False
     match = re.search(
@@ -200,33 +166,35 @@ def _too_negative(row: _Fields, prefix: str) -> bool:
 
 def _stability(row: _Fields, as_of: date) -> BlockScore:
     weight = WEIGHTS["stability"]
-    if row.fedresurs.trust is not Trust.FOUND or row.kad.trust is not Trust.FOUND:
-        return BlockScore(
-            name="stability",
-            weight=weight,
-            points=None,
-            reason="Федресурс и КАД не открылись, устойчивость не считаем",
-        )
+    status = _text(row.egrul_status)
+    dead = "ликвидирован" in status or "не действует" in status
     age = _age_points(row.egrul_registered_at, as_of)
-    courts = _court_points(row.fedresurs, row.kad)
-    if age is None and courts is None:
+    if dead:
+        if age is None and not status:
+            return BlockScore(
+                name="stability",
+                weight=weight,
+                points=None,
+                reason="дата регистрации не найдена",
+            )
+        return BlockScore(
+            name="stability",
+            weight=weight,
+            points=0,
+            reason="статус не действует",
+        )
+    if age is None:
         return BlockScore(
             name="stability",
             weight=weight,
             points=None,
-            reason="реестры открылись, но возраста и сигнала судов нет",
+            reason="дата регистрации не найдена",
         )
-    points = (age or 0) + (courts or 0)
-    bits: list[str] = []
-    if age is not None:
-        bits.append(f"возраст {age:+d}")
-    if courts is not None:
-        bits.append(f"суды {courts:+d}")
     return BlockScore(
         name="stability",
         weight=weight,
-        points=points,
-        reason="; ".join(bits),
+        points=age,
+        reason=f"возраст {age:+d}",
     )
 
 
@@ -244,14 +212,60 @@ def _age_points(field: SourcedField, as_of: date) -> int | None:
     return 1
 
 
-def _court_points(fedresurs: SourcedField, kad: SourcedField) -> int | None:
-    fed = _text(fedresurs)
-    kad_text = _text(kad)
-    blob = f"{fed} {kad_text}"
-    if "банкрот" in blob or "есть дела" in blob:
-        return -2
-    if "не обнаружено" in fed and "не обнаружено" in kad_text:
+def _location(row: _Fields) -> BlockScore:
+    weight = WEIGHTS["location"]
+    metro_pts = _metro_points(row)
+    vs_pts = _neighbor_vs_points(row)
+    if metro_pts is None and vs_pts is None:
+        return BlockScore(
+            name="location",
+            weight=weight,
+            points=None,
+            reason="метро и сравнение с соседями не найдены",
+        )
+    points = min(3, (metro_pts or 0) + (vs_pts or 0))
+    bits: list[str] = []
+    if metro_pts is not None:
+        bits.append(f"метро {metro_pts:+d}")
+    if vs_pts is not None:
+        bits.append(f"соседи {vs_pts:+d}")
+    return BlockScore(
+        name="location",
+        weight=weight,
+        points=points,
+        reason="; ".join(bits),
+    )
+
+
+def _metro_points(row: _Fields) -> int | None:
+    field = getattr(row, "metro", None)
+    if not isinstance(field, SourcedField):
+        return None
+    if field.trust is Trust.MISSING or field.value is None:
+        return None
+    raw = str(field.value)
+    match = _METRO_METERS.search(raw)
+    if match is None:
         return 1
+    meters = int(match.group(1))
+    if meters <= 400:
+        return 2
+    if meters <= 800:
+        return 1
+    return 1
+
+
+def _neighbor_vs_points(row: _Fields) -> int | None:
+    field = getattr(row, "neighbor_vs", None)
+    if not isinstance(field, SourcedField):
+        return None
+    if field.trust is Trust.MISSING or field.value is None:
+        return None
+    value = str(field.value).casefold()
+    if value == "ниже":
+        return 1
+    if value == "выше":
+        return 0
     return None
 
 

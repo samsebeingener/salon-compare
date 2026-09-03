@@ -13,7 +13,7 @@ from salon_compare.collect import (
 from salon_compare.hooks import classify_hook
 from salon_compare.html_fetch import classify_fetch
 from salon_compare.intake import VenueCandidate
-from salon_compare.legal import LegalExtract, kad_url
+from salon_compare.legal import LegalExtract
 from salon_compare.maps_parse import neighbors_from_twogis_items
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,17 +75,8 @@ def test_login_word_is_not_blocked_captcha_is() -> None:
     )
 
 
-def test_kad_shell_without_ogrn_is_missing_not_has_cases() -> None:
-    url = kad_url(OGRN)
-    html = FakeHtml(
-        {
-            url: HtmlFetchResult(
-                "ok",
-                "<html>Картотека арбитражных дел. Войти</html>",
-                url,
-            )
-        }
-    )
+def test_courts_not_fetched_even_if_kad_html_exists() -> None:
+    html = FakeHtml({})
     deps = CollectDeps(
         twogis=FakeMapApi(None),
         html=html,
@@ -95,6 +86,8 @@ def test_kad_shell_without_ogrn_is_missing_not_has_cases() -> None:
     place = collect_place(_venue(), classify_hook(OGRN), deps)
     assert place.kad.trust is Trust.MISSING
     assert place.kad.value is None
+    assert all("kad.arbitr" not in item for item in html.calls)
+    assert all("fedresurs" not in item for item in html.calls)
 
 
 def test_inn_on_card_does_not_hit_fedresurs() -> None:

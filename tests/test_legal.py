@@ -17,8 +17,6 @@ from salon_compare.legal import (
     LegalExtract,
     LegalOrg,
     egrul_url,
-    fedresurs_url,
-    kad_url,
     labeled_inn,
     labeled_ogrn,
     resolve_legal_orgs,
@@ -137,16 +135,12 @@ def test_ogrn_hook_is_single_org_without_search() -> None:
     assert found[0].source_url == egrul_url(OGRN)
 
 
-def test_ogrn_fills_three_registries() -> None:
+def test_ogrn_fills_egrul_skips_courts() -> None:
     html = FakeHtml(
         {
             egrul_url(OGRN): HtmlFetchResult(
                 "ok", f"<egrul>{OGRN}</egrul>", egrul_url(OGRN)
             ),
-            fedresurs_url(OGRN): HtmlFetchResult(
-                "ok", f"<fed>{OGRN}</fed>", fedresurs_url(OGRN)
-            ),
-            kad_url(OGRN): HtmlFetchResult("ok", f"<kad>{OGRN}</kad>", kad_url(OGRN)),
         }
     )
     place = collect_place(_venue(), classify_hook(OGRN), _deps(html))
@@ -154,10 +148,10 @@ def test_ogrn_fills_three_registries() -> None:
     assert place.egrul_status.value == "действует"
     assert place.egrul_activity.value == "парикмахерские"
     assert place.egrul_status.source_url == egrul_url(OGRN)
-    assert place.fedresurs.value == "не обнаружено"
-    assert place.fedresurs.source_url == fedresurs_url(OGRN)
-    assert place.kad.value == "не обнаружено"
-    assert place.kad.source_url == kad_url(OGRN)
+    assert place.fedresurs.trust is Trust.MISSING
+    assert place.kad.trust is Trust.MISSING
+    assert all("fedresurs" not in item for item in html.calls)
+    assert all("kad.arbitr" not in item for item in html.calls)
     assert place.legal_candidates == ()
     assert "founder" not in PlaceRecord.model_fields
 
@@ -244,12 +238,6 @@ def test_confirm_ogrn_collects_that_org() -> None:
             egrul_url("2222222222222"): HtmlFetchResult(
                 "ok", "<egrul>2222222222222</egrul>", egrul_url("2222222222222")
             ),
-            fedresurs_url("2222222222222"): HtmlFetchResult(
-                "ok", "<fed>2222222222222</fed>", fedresurs_url("2222222222222")
-            ),
-            kad_url("2222222222222"): HtmlFetchResult(
-                "ok", "<kad>2222222222222</kad>", kad_url("2222222222222")
-            ),
         }
     )
     twogis = _card(ogrn="2222222222222", url="https://2gis.example/firm/b")
@@ -273,8 +261,9 @@ def test_confirm_ogrn_collects_that_org() -> None:
     assert place.legal_candidates == ()
     assert place.egrul_status.value == "действует"
     assert place.egrul_status.source_url == egrul_url("2222222222222")
-    assert place.kad.value == "есть дела"
+    assert place.kad.trust is Trust.MISSING
     assert egrul_url("1111111111111") not in html.calls
+    assert all("kad.arbitr" not in item for item in html.calls)
 
 
 def test_inn_two_orgs_need_confirm() -> None:
@@ -297,27 +286,23 @@ def test_inn_two_orgs_need_confirm() -> None:
         egrul_url("2222222222222"),
     }
     assert place.egrul_status.trust is Trust.MISSING
-    assert fedresurs_url("1111111111111") not in html.calls
+    assert all("fedresurs" not in item for item in html.calls)
 
 
-def test_fedresurs_captcha_missing_egrul_ok() -> None:
+def test_courts_are_not_requested() -> None:
     html = FakeHtml(
         {
             egrul_url(OGRN): HtmlFetchResult(
                 "ok", f"<egrul>{OGRN}</egrul>", egrul_url(OGRN)
             ),
-            fedresurs_url(OGRN): HtmlFetchResult(
-                "blocked", "captcha", fedresurs_url(OGRN)
-            ),
-            kad_url(OGRN): HtmlFetchResult("ok", f"<kad>{OGRN}</kad>", kad_url(OGRN)),
         }
     )
     place = collect_place(_venue(), classify_hook(OGRN), _deps(html))
     assert place.egrul_status.value == "действует"
     assert place.fedresurs.trust is Trust.MISSING
-    assert place.fedresurs.value is None
-    assert place.kad.value == "не обнаружено"
-    assert html.calls.count(fedresurs_url(OGRN)) == 1
+    assert place.kad.trust is Trust.MISSING
+    assert all("fedresurs" not in item for item in html.calls)
+    assert all("kad.arbitr" not in item for item in html.calls)
 
 
 def test_app_asks_legal_confirm_and_shows_registry_rows() -> None:
@@ -325,8 +310,8 @@ def test_app_asks_legal_confirm_and_shows_registry_rows() -> None:
     assert "legal_candidates" in text
     assert "Подтвердить юрлицо" in text
     assert "ЕГРЮЛ" in text
-    assert "Федресурс" in text
-    assert "КАД" in text
+    assert "Федресурс" not in text
+    assert "КАД" not in text
     assert "покупай" not in text.lower()
 
 

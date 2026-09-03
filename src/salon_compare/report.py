@@ -30,8 +30,6 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("egrul_registered_at", "ЕГРЮЛ/ЕГРИП дата"),
     ("egrul_status", "ЕГРЮЛ/ЕГРИП статус"),
     ("egrul_activity", "ЕГРЮЛ/ЕГРИП деятельность"),
-    ("fedresurs", "Федресурс"),
-    ("kad", "КАД"),
 )
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(name for name, _ in FIELD_LABELS)
