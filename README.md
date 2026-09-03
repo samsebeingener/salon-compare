@@ -75,12 +75,14 @@ docker compose up --build
 
 ```text
 HTTP_PROXY=http://USER:PASSWORD@HOST:PORT
-HTTPS_PROXY=http://USER:PASSWORD@HOST:PORT
+HTTPS_PROXY=https://USER:PASSWORD@HOST:PORT
 ```
 
-Это **ваш** HTTP-прокси (корпоративный или купленный), в формате `http://логин:пароль@хост:порт`. Публичные «бесплатные» списки не подходят и в репозиторий не пишем. Пустые значения — без прокси. Клиент LLM берёт `HTTP_PROXY` / `HTTPS_PROXY` из окружения. Docker Compose прокидывает их в контейнер; healthcheck на localhost через прокси не идёт.
+Это **ваш** прокси (корпоративный или купленный). Публичные «бесплатные» списки не подходят и в репозиторий не пишем. Пустые значения — без прокси.
 
-Вывод модели в отчёте появляется только если заполнены `LLM_*`; иначе строка «вывод модели не найден (нет ключа)». Каждый вызов модели пишется в `data/llm-interactions.log` (ключ маскируется; отключить: `LLM_LOG=0`). Живой прогон: `uv run python scripts/run_llm_probe.py`. Для [Kie Gemini 3 Flash](https://kie.ai/gemini-3-flash) в `.env`: `LLM_BASE_URL=https://api.kie.ai/`, `LLM_MODEL=gemini-3-flash` — клиент сам бьёт `/{модель}/v1/chat/completions`. Ключ Kie (`LLM_API_KEY` или `KIE_API_KEY`). Документация: [docs.kie.ai](https://docs.kie.ai/market/gemini/gemini-3-flash). OpenRouter из РФ часто режется DNS/прокси (502 CONNECT). Клиент пробует прокси, затем прямой канал. `LLM_DIRECT=1` — сначала прямой, потом прокси. Схема прокси `http://`, даже для HTTPS-сайтов.
+Имена `HTTP_PROXY` / `HTTPS_PROXY` в POSIX значат «для http-сайтов» и «для https-сайтов». Клиент LLM пробует **каждую уникальную строку как есть**: сначала `HTTP_PROXY`, потом `HTTPS_PROXY`, если URL другой, затем напрямую. `https://` у прокси не переписываем в `http://`. Если в обеих переменных один и тот же URL — это одна попытка. `LLM_DIRECT=1` — сначала прямой канал, потом прокси. Docker Compose прокидывает переменные в контейнер; healthcheck на localhost через прокси не идёт.
+
+Вывод модели в отчёте появляется только если заполнены `LLM_*`; иначе строка «вывод модели не найден (нет ключа)». Каждый вызов модели пишется в `data/llm-interactions.log` (ключ маскируется; отключить: `LLM_LOG=0`). Живой прогон: `uv run python scripts/run_llm_probe.py`. Для [Kie Gemini 3 Flash](https://kie.ai/gemini-3-flash) в `.env`: `LLM_BASE_URL=https://api.kie.ai/`, `LLM_MODEL=gemini-3-flash` — клиент сам бьёт `/{модель}/v1/chat/completions`. Ключ Kie (`LLM_API_KEY` или `KIE_API_KEY`). Документация: [docs.kie.ai](https://docs.kie.ai/market/gemini/gemini-3-flash). OpenRouter из РФ часто режется DNS или отвечает 502 CONNECT на прокси — это блок хоста, не «не та схема в имени переменной».
 
 ## Что за рамками
 

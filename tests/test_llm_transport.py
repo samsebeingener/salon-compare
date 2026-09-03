@@ -11,34 +11,59 @@ from salon_compare.proxy import llm_httpx_client_kwargs, llm_transport_attempts
 
 def test_proxy_then_direct_when_proxy_set(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LLM_DIRECT", raising=False)
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
     monkeypatch.setenv("HTTPS_PROXY", "http://user:secret@proxy.example:8080")
     names = [name for name, _kwargs in llm_transport_attempts()]
-    assert names == ["proxy", "direct"]
+    assert names == ["proxy-http", "direct"]
     first = llm_httpx_client_kwargs()
     assert first.get("trust_env") is False
     assert first.get("proxy") == "http://user:secret@proxy.example:8080"
 
 
-def test_https_proxy_scheme_normalized_to_http(
+def test_https_proxy_scheme_kept(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_DIRECT", raising=False)
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "https://proxy.example:9401")
+    first = llm_httpx_client_kwargs()
+    assert first.get("proxy") == "https://proxy.example:9401"
+
+
+def test_http_and_https_proxy_are_two_attempts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LLM_DIRECT", raising=False)
-    monkeypatch.setenv("HTTPS_PROXY", "https://proxy.example:9401")
-    first = llm_httpx_client_kwargs()
-    assert first.get("proxy") == "http://proxy.example:9401"
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8080")
+    monkeypatch.setenv("HTTPS_PROXY", "https://proxy.example:8080")
+    attempts = llm_transport_attempts()
+    names = [name for name, _kwargs in attempts]
+    assert names == ["proxy-http", "proxy-https", "direct"]
+    assert attempts[0][1].get("proxy") == "http://proxy.example:8080"
+    assert attempts[1][1].get("proxy") == "https://proxy.example:8080"
+
+
+def test_identical_proxy_urls_are_one_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LLM_DIRECT", raising=False)
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8080")
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8080")
+    names = [name for name, _kwargs in llm_transport_attempts()]
+    assert names == ["proxy-http", "direct"]
 
 
 def test_direct_then_proxy_when_llm_direct(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_DIRECT", "1")
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8080")
     names = [name for name, _kwargs in llm_transport_attempts()]
-    assert names == ["direct", "proxy"]
+    assert names == ["direct", "proxy-http"]
 
 
 def test_complete_retries_direct_after_proxy_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LLM_DIRECT", raising=False)
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:8080")
     calls = {"n": 0}
 

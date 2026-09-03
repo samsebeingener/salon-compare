@@ -10,11 +10,7 @@ import httpx
 from pydantic import BaseModel
 
 from salon_compare.llm_log import log_llm_event
-from salon_compare.proxy import (
-    llm_transport_attempts,
-    proxy_public_label,
-    proxy_url_from_env,
-)
+from salon_compare.proxy import llm_transport_attempts, proxy_public_labels
 
 _TIMEOUT = 120.0
 _DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
@@ -242,7 +238,6 @@ class OpenAiCompatLlm:
         self._last_error = None
         url = chat_completions_url(self.base_url, self.model)
         system_text = system if system else _DEFAULT_SYSTEM
-        proxy_url = proxy_url_from_env()
         log_llm_event(
             "request",
             api_key=self.api_key,
@@ -250,7 +245,7 @@ class OpenAiCompatLlm:
             model=self.model,
             url=url,
             llm_direct=os.environ.get("LLM_DIRECT", ""),
-            proxy=proxy_public_label(proxy_url) if proxy_url else "",
+            proxy=proxy_public_labels(),
             system=system_text,
             user_prompt=prompt,
         )
@@ -272,7 +267,7 @@ class OpenAiCompatLlm:
                 )
             except httpx.HTTPError as exc:
                 detail = str(exc)
-                if channel == "proxy" and "502" in detail:
+                if channel.startswith("proxy") and "502" in detail:
                     failures.append(
                         f"{channel}: ProxyError 502 CONNECT "
                         f"(прокси ответил, хост LLM не пустил)"
