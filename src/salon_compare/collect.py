@@ -623,18 +623,40 @@ def _rbc_egrul(
     if page.status != "ok":
         return gap, gap, gap
     snippet = rbc_company_snippet(page.body, org.ogrn)
-    if snippet is None:
+    if snippet is not None:
+        filled = _rbc_fields_from_html(snippet, url, parser, gap)
+        if filled is not None:
+            return filled
+    card_url = rbc_company_card_url(page.body, org.ogrn)
+    if card_url is None:
         return gap, gap, gap
-    extract = parser.parse_egrul(snippet)
-    registered = _weak(extract.registered_at, url) if extract.registered_at else gap
-    status = _weak(extract.status, url) if extract.status else gap
-    activity = _weak(extract.activity, url) if extract.activity else gap
+    card = html.get(card_url)
+    if card.status != "ok":
+        return gap, gap, gap
+    filled = _rbc_fields_from_html(card.body, card_url, parser, gap)
+    if filled is not None:
+        return filled
+    return gap, gap, gap
+
+
+def _rbc_fields_from_html(
+    html: str,
+    source_url: str,
+    parser: LegalParser,
+    gap: SourcedField,
+) -> tuple[SourcedField, SourcedField, SourcedField] | None:
+    extract = parser.parse_egrul(html)
+    registered = (
+        _weak(extract.registered_at, source_url) if extract.registered_at else gap
+    )
+    status = _weak(extract.status, source_url) if extract.status else gap
+    activity = _weak(extract.activity, source_url) if extract.activity else gap
     if (
         registered.trust is Trust.MISSING
         and status.trust is Trust.MISSING
         and activity.trust is Trust.MISSING
     ):
-        return gap, gap, gap
+        return None
     return registered, status, activity
 
 

@@ -67,10 +67,22 @@ class MapsSearchResolver:
         if merged:
             return merged
         if hook.kind is HookKind.OGRN:
-            for name in self._brands.names_for_ogrn(hook.normalized):
+            names = self._brands.names_for_ogrn(hook.normalized)
+            for name in names:
                 extra = _unique(self._twogis.search(name))
                 if extra:
                     return extra
+            fallback = _fallback_without_maps(hook)
+            if fallback is not None and names:
+                return [
+                    VenueCandidate(
+                        fallback.venue_id,
+                        names[0],
+                        fallback.source_url,
+                        fallback.provider,
+                    )
+                ]
+            return [fallback] if fallback is not None else []
         fallback = _fallback_without_maps(hook)
         return [fallback] if fallback is not None else []
 

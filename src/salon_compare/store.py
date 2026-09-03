@@ -199,15 +199,50 @@ def save_run_usage(run_id: int, usage: LlmUsage, path: Path | None = None) -> No
         conn.commit()
 
 
+def titles_from_payload(raw: str) -> tuple[str, ...]:
+    items, _usage = _row_dicts(raw)
+    titles: list[str] = []
+    for item in items:
+        title = item.get("title")
+        if isinstance(title, str) and title.strip():
+            titles.append(title.strip())
+        else:
+            titles.append("без названия")
+    return tuple(titles)
+
+
+def format_run_date(created_at: str) -> str:
+    text = created_at.strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def run_select_label(run_id: int, created_at: str, titles: Sequence[str]) -> str:
+    names = " / ".join(titles) if titles else "без названий"
+    return f"#{run_id} — {format_run_date(created_at)} — {names}"
+
+
 def list_runs(path: Path | None = None) -> list[tuple[int, str]]:
     db = path or default_db_path()
     if not db.is_file():
         return []
     with _connect(db) as conn:
         found = conn.execute(
-            "SELECT id, created_at FROM runs ORDER BY id DESC LIMIT 20"
+            "SELECT id, created_at, payload FROM runs ORDER BY id DESC LIMIT 20"
         ).fetchall()
-    return [(int(item[0]), str(item[1])) for item in found]
+    listed: list[tuple[int, str]] = []
+    for item in found:
+        run_id = int(item[0])
+        created_at = str(item[1])
+        try:
+            titles = titles_from_payload(str(item[2]))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            titles = ()
+        listed.append((run_id, run_select_label(run_id, created_at, titles)))
+    return listed
 
 
 COLLECT_CACHE_VERSION = "2026-09-03-hide-review-fields"

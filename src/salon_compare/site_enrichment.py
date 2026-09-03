@@ -205,14 +205,18 @@ def internal_legal_links(
 
 
 def rbc_company_card_url(search_html: str, ogrn: str) -> str | None:
-    pattern = re.compile(
-        rf'href="(https://companies\.rbc\.ru/id/{re.escape(ogrn)}-[^"]+)"',
-        re.IGNORECASE,
+    patterns = (
+        rf'href="((?:https://companies\.rbc\.ru)?/id/{re.escape(ogrn)}-[^"]+)"',
+        rf'href="((?:https://companies\.rbc\.ru)?/persons/ogrnip/{re.escape(ogrn)}-[^"]+)"',
     )
-    match = pattern.search(search_html)
-    if match is None:
-        return None
-    return match.group(1)
+    for pattern in patterns:
+        match = re.search(pattern, search_html, re.IGNORECASE)
+        if match is not None:
+            href = match.group(1)
+            if href.startswith("/"):
+                return "https://companies.rbc.ru" + href
+            return href
+    return None
 
 
 def rbc_website(html: str) -> str | None:

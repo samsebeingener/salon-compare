@@ -154,6 +154,18 @@ def test_ogrn_digits_miss_one_brand_hit_is_that_card() -> None:
     assert [item.venue_id for item in found] == ["twogis:o"]
 
 
+def test_ogrnip_empty_maps_uses_rbc_person_title() -> None:
+    ogrnip = "319774600285920"
+    name = "ИП Гловский Игорь Дмитриевич"
+    found = MapsSearchResolver(
+        FakeCatalog({}),
+        FakeBrandNames({ogrnip: [name, "Гловский Игорь Дмитриевич"]}),
+    ).resolve(classify_hook(ogrnip))
+    assert len(found) == 1
+    assert found[0].venue_id.startswith("ogrn:")
+    assert found[0].title == name
+
+
 def test_readme_cross_source_not_one_way() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8").lower()
     assert "2гис" in text or "2gis" in text

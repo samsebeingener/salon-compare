@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
@@ -7,11 +8,15 @@ from salon_compare.legal import LegalOrg
 from salon_compare.llm import LlmUsage
 from salon_compare.store import (
     collect_cache_key,
+    format_run_date,
+    list_runs,
     load_run,
     load_run_usage,
     rows_from_cache,
+    run_select_label,
     save_run,
     save_run_usage,
+    titles_from_payload,
     update_run,
 )
 
@@ -116,6 +121,33 @@ def test_same_cache_key_skips_factory() -> None:
     assert first[0].venue_id == second[0].venue_id
 
 
+def test_list_runs_label_has_id_date_and_titles(tmp_path: Path) -> None:
+    path = tmp_path / "salon-compare.sqlite"
+    first = _row().model_copy(update={"venue_id": "a", "title": "Pink Lemon"})
+    second = _row().model_copy(update={"venue_id": "b", "title": "Вишня"})
+    third = _row().model_copy(update={"venue_id": "c", "title": "Культура"})
+    run_id = save_run([first, second, third], path)
+    listed = list_runs(path)
+    assert listed[0][0] == run_id
+    label = listed[0][1]
+    assert label.startswith(f"#{run_id} — ")
+    assert "Pink Lemon / Вишня / Культура" in label
+    assert "T" not in label.split(" — ")[1]
+
+
+def test_run_select_label_format() -> None:
+    assert (
+        run_select_label(22, "2026-09-03T11:11:08+00:00", ("A", "B", "C"))
+        == "#22 — 2026-09-03 11:11 — A / B / C"
+    )
+    assert format_run_date("2026-09-03T11:11:08+00:00") == "2026-09-03 11:11"
+    packed = json.dumps(
+        {"rows": [{"title": "Один"}, {"title": ""}], "usage": None},
+        ensure_ascii=False,
+    )
+    assert titles_from_payload(packed) == ("Один", "без названия")
+
+
 def test_app_opens_saved_without_new_search() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
@@ -125,6 +157,7 @@ def test_app_opens_saved_without_new_search() -> None:
     assert "update_run" in text
     assert "collected_rows" in text or "rows_from_cache" in text
     assert "покупай" not in lowered
+    assert "_labels" in text
 
 
 def test_readme_mentions_sqlite() -> None:

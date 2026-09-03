@@ -50,6 +50,14 @@ def test_rbc_company_card_url_from_search() -> None:
     )
 
 
+def test_rbc_company_card_url_ogrnip_relative() -> None:
+    ogrnip = "319774600285920"
+    html = f'<a href="/persons/ogrnip/{ogrnip}-glovskij/">ип</a>'
+    assert rbc_company_card_url(html, ogrnip) == (
+        f"https://companies.rbc.ru/persons/ogrnip/{ogrnip}-glovskij/"
+    )
+
+
 def test_rbc_website_from_id_page() -> None:
     html = """
     <div>Сайт</div><div class="company-detail-block__item-inner-container">

@@ -69,7 +69,7 @@ st.write("Введите три зацепки — по одной на точк
 _saved = list_runs()
 if _saved:
     _ids = [item[0] for item in _saved]
-    _labels = {item[0]: f"#{item[0]} · {item[1]}" for item in _saved}
+    _labels = {item[0]: item[1] for item in _saved}
     _picked = st.selectbox(
         "Сохранённые разборы",
         _ids,
