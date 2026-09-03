@@ -123,11 +123,12 @@ def test_unreliable_object_drops_index() -> None:
     assert "недостоверн" in score.note.lower()
 
 
-def test_app_shows_cards_and_model_disclaimer() -> None:
+def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
     assert "текст модели, не инвестиционный совет" in lowered
     assert MODEL_DISCLAIMER.lower() in lowered
     assert "покупай" not in lowered
     assert "недостоверн" in lowered
-    assert "карточки" in lowered
+    assert "_show_cards" not in text
+    assert "Индекс пояснение" not in text
