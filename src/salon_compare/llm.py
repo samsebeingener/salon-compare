@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from salon_compare.proxy import httpx_client_kwargs
 
 _TIMEOUT = 30.0
+_DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
 
 
 class LlmUsage(BaseModel):
@@ -21,9 +22,11 @@ class LlmUsage(BaseModel):
 
 
 class LlmClient(Protocol):
-    def complete(self, prompt: str) -> str: ...
+    def complete(self, prompt: str, *, system: str | None = None) -> str: ...
 
     def last_usage(self) -> LlmUsage: ...
+
+    def last_error(self) -> str | None: ...
 
 
 def _as_int(raw: object) -> int | None:
@@ -106,12 +109,15 @@ def estimate_usd(
 
 
 class NullLlm:
-    def complete(self, prompt: str) -> str:
-        del prompt
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        del prompt, system
         return ""
 
     def last_usage(self) -> LlmUsage:
         return LlmUsage()
+
+    def last_error(self) -> str | None:
+        return None
 
 
 class OpenAiCompatLlm:
@@ -120,12 +126,18 @@ class OpenAiCompatLlm:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self._usage = LlmUsage()
+        self._last_error: str | None = None
 
     def last_usage(self) -> LlmUsage:
         return self._usage
 
-    def complete(self, prompt: str) -> str:
+    def last_error(self) -> str | None:
+        return self._last_error
+
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        self._last_error = None
         url = f"{self.base_url}/chat/completions"
+        system_text = system if system else _DEFAULT_SYSTEM
         try:
             response = httpx.post(
                 url,
@@ -136,33 +148,38 @@ class OpenAiCompatLlm:
                 json={
                     "model": self.model,
                     "messages": [
-                        {
-                            "role": "system",
-                            "content": "Отвечай только JSON без пояснений.",
-                        },
+                        {"role": "system", "content": system_text},
                         {"role": "user", "content": prompt},
                     ],
                 },
                 timeout=_TIMEOUT,
                 **httpx_client_kwargs(),
             )
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
             self._usage = LlmUsage()
+            self._last_error = f"сеть: {exc.__class__.__name__}"
             return ""
         if response.status_code >= 400:
             self._usage = LlmUsage()
+            body = response.text.strip()
+            if len(body) > 120:
+                body = body[:117] + "..."
+            self._last_error = f"HTTP {response.status_code}: {body or 'пустой ответ'}"
             return ""
         try:
             data = response.json()
         except ValueError:
             self._usage = LlmUsage()
+            self._last_error = "ответ API не JSON"
             return ""
         self._usage = usage_from_response(data)
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
+            self._last_error = "в ответе API нет choices[0].message.content"
             return ""
         if not isinstance(content, str):
+            self._last_error = "content ответа не строка"
             return ""
         return content
 

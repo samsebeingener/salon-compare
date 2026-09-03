@@ -1,16 +1,18 @@
 """Три зацепки, подтверждение карточек со ссылками, таблица полей."""
 
+import importlib
 from collections.abc import Callable
 from typing import cast
 
 import streamlit as st
 
+import salon_compare.report as report
+import salon_compare.store as store
 from salon_compare.collect import (
     CollectDeps,
     PlaceRecord,
     SleepPacer,
     SourcedField,
-    Trust,
     collect_three,
 )
 from salon_compare.html_fetch import HttpxHtmlFetcher
@@ -26,30 +28,34 @@ from salon_compare.legal import LegalOrg, MarkerLegalParser
 from salon_compare.llm import LlmUsage, NullLlm, estimate_usd, make_llm
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
-from salon_compare.report import (
-    EDITABLE_FIELDS,
-    FIELD_LABELS,
-    ModelVerdict,
-    complete_verdict,
-    mark_unreliable,
-    patch_field,
-    rows_fingerprint,
-)
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
 from salon_compare.score import score_place
-from salon_compare.store import (
-    collect_cache_key,
-    list_runs,
-    load_run,
-    load_run_usage,
-    rows_from_cache,
-    save_run,
-    save_run_usage,
-)
+
+report = importlib.reload(report)
+store = importlib.reload(store)
+EDITABLE_FIELDS = report.EDITABLE_FIELDS
+FIELD_LABELS = report.FIELD_LABELS
+ModelVerdict = report.ModelVerdict
+cell_help = report.cell_help
+complete_verdict = report.complete_verdict
+footnote_lines = report.footnote_lines
+footnote_map = report.footnote_map
+mark_unreliable = report.mark_unreliable
+patch_field = report.patch_field
+rows_fingerprint = report.rows_fingerprint
+table_cell = report.table_cell
+collect_cache_key = store.collect_cache_key
+list_runs = store.list_runs
+load_run = store.load_run
+load_run_usage = store.load_run_usage
+rows_from_cache = store.rows_from_cache
+save_run = store.save_run
+save_run_usage = store.save_run_usage
+update_run = store.update_run
 
 load_project_env()
 
-st.set_page_config(page_title="salon-compare", layout="centered")
+st.set_page_config(page_title="salon-compare", layout="wide")
 st.title("salon-compare")
 st.write("Введите три зацепки — по одной на точку.")
 
@@ -81,18 +87,6 @@ hook_two = st.text_input("Зацепка 2")
 hook_three = st.text_input("Зацепка 3")
 
 
-def _cell(field: SourcedField) -> str:
-    if field.trust is Trust.MISSING or field.value is None:
-        return "не найдено"
-    link = f" · {field.source_url}" if field.source_url else ""
-    if field.trust is Trust.WEAK:
-        return f"{field.value} · слабо{link}"
-    if field.trust is Trust.FOUND:
-        return f"{field.value}{link}" if field.source_url else str(field.value)
-    unreachable: Trust = field.trust
-    raise ValueError(unreachable)
-
-
 def _card_label(slot: list[VenueCandidate], venue_id: str) -> str:
     for item in slot:
         if item.venue_id == venue_id:
@@ -105,15 +99,6 @@ def _radio_format(slot: list[VenueCandidate]) -> Callable[[str], str]:
         return _card_label(slot, venue_id)
 
     return _fmt
-
-
-def _legal_cell(row: PlaceRecord, field: SourcedField) -> str:
-    if row.legal_candidates:
-        links = " · ".join(
-            f"{item.title} — {item.source_url}" for item in row.legal_candidates
-        )
-        return f"уточните юрлицо · {links}"
-    return _cell(field)
 
 
 def _org_label(orgs: tuple[LegalOrg, ...], ogrn: str) -> str:
@@ -137,43 +122,95 @@ def _resolver() -> MapsSearchResolver:
     )
 
 
+_CELL_EDIT_CSS = """
+<style>
+div[class*="st-key-cell-"] button [data-testid="stIconMaterial"] {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+div[class*="st-key-cell-"] button:hover [data-testid="stIconMaterial"],
+div[class*="st-key-cell-"] button:focus-visible [data-testid="stIconMaterial"] {
+  opacity: 1;
+}
+</style>
+"""
+
+
+def _show_footnotes(mapping: dict[str, int]) -> None:
+    lines = footnote_lines(mapping)
+    if not lines:
+        return
+    st.caption("Источники")
+    for number, url in lines:
+        if url.startswith("http://") or url.startswith("https://"):
+            st.markdown(f"**[{number}]** [{url}]({url})")
+        else:
+            st.markdown(f"**[{number}]** {url}")
+
+
+@st.dialog("Править поле")
+def _edit_dialog(venue_index: int, field_name: str) -> None:
+    current = st.session_state.get("working_rows")
+    if not isinstance(current, list) or venue_index >= len(current):
+        st.write("строка не найдена")
+        return
+    row = current[venue_index]
+    if not isinstance(row, PlaceRecord) or field_name not in EDITABLE_FIELDS:
+        st.write("поле не найдено")
+        return
+    labels = dict(FIELD_LABELS)
+    field = getattr(row, field_name)
+    if not isinstance(field, SourcedField) or field.value is None:
+        shown = ""
+    else:
+        shown = str(field.value)
+    st.write(f"{row.title} · {labels[field_name]}")
+    raw = st.text_input(
+        "Значение",
+        value=shown,
+        key=f"edit-raw-{venue_index}-{field_name}",
+    )
+    left, right = st.columns(2)
+    if left.button("Сохранить", key=f"edit-save-{venue_index}-{field_name}"):
+        _replace_working(venue_index, patch_field(row, field_name, raw))
+        st.rerun()
+    if right.button(
+        "Пометить недостоверным",
+        key=f"edit-bad-{venue_index}-{field_name}",
+    ):
+        _replace_working(venue_index, mark_unreliable(row))
+        st.rerun()
+
+
 def _show_table(rows: list[PlaceRecord]) -> None:
     st.subheader("Поля точек")
-    table: dict[str, list[str]] = {
-        "Поле": [
-            "2ГИС рейтинг",
-            "Часы",
-            "Район",
-            "Метро",
-            "Адрес",
-            "Соседи 500 м",
-            "Соседи выше/ниже",
-            "Сайт «о нас»",
-            "ЕГРЮЛ/ЕГРИП дата",
-            "ЕГРЮЛ/ЕГРИП статус",
-            "ЕГРЮЛ/ЕГРИП деятельность",
-            "Индекс 50/25/25",
-        ]
-    }
-    for row in rows:
-        scored = score_place(row)
-        index_cell = "не найдено" if scored.index is None else str(scored.index)
+    st.markdown(_CELL_EDIT_CSS, unsafe_allow_html=True)
+    notes = footnote_map(rows)
+    widths = [1.35] + [1] * len(rows)
+    header = st.columns(widths)
+    header[0].markdown("**Поле**")
+    for index, row in enumerate(rows):
         heading = f"{row.title} · недостоверный" if row.unreliable else row.title
-        table[heading] = [
-            _cell(row.twogis_rating),
-            _cell(row.hours),
-            _cell(row.district),
-            _cell(row.metro),
-            _cell(row.address),
-            _cell(row.neighbor_count),
-            _cell(row.neighbor_vs),
-            _cell(row.site_about),
-            _legal_cell(row, row.egrul_registered_at),
-            _legal_cell(row, row.egrul_status),
-            _legal_cell(row, row.egrul_activity),
-            index_cell,
-        ]
-    st.table(table)
+        header[index + 1].markdown(f"**{heading}**")
+    for name, label in FIELD_LABELS:
+        cols = st.columns(widths)
+        cols[0].write(label)
+        for index, row in enumerate(rows):
+            if cols[index + 1].button(
+                table_cell(row, name, notes),
+                key=f"cell-{index}-{name}",
+                icon=":material/edit:",
+                help=cell_help(row, name),
+            ):
+                _edit_dialog(index, name)
+    scored_cols = st.columns(widths)
+    scored_cols[0].write("Индекс 50/25/25")
+    for index, row in enumerate(rows):
+        scored = score_place(row)
+        scored_cols[index + 1].write(
+            "не найдено" if scored.index is None else str(scored.index)
+        )
+    _show_footnotes(notes)
     st.caption("Ориентир по формуле, не инвестиционный совет.")
 
 
@@ -193,6 +230,18 @@ def _working_rows(rows: list[PlaceRecord], key: object) -> list[PlaceRecord]:
     return typed
 
 
+def _persist_working(rows: list[PlaceRecord]) -> None:
+    run_id = st.session_state.get("run_id")
+    if isinstance(run_id, int):
+        update_run(run_id, rows)
+    else:
+        st.session_state["run_id"] = save_run(rows)
+    cache = st.session_state.get("row_cache")
+    key = st.session_state.get("working_key")
+    if isinstance(cache, dict) and key is not None:
+        cache[key] = list(rows)
+
+
 def _replace_working(index: int, row: PlaceRecord) -> None:
     current = list(st.session_state.get("working_rows", []))
     if index < 0 or index >= len(current):
@@ -203,32 +252,7 @@ def _replace_working(index: int, row: PlaceRecord) -> None:
     saved = st.session_state.get("saved_rows")
     if isinstance(saved, list) and len(saved) == len(current):
         st.session_state["saved_rows"] = current
-
-
-def _show_corrections(rows: list[PlaceRecord]) -> None:
-    st.subheader("Правки")
-    labels = dict(FIELD_LABELS)
-    picked = st.selectbox(
-        "Точка",
-        range(len(rows)),
-        format_func=lambda index: rows[int(index)].title,
-        key="edit-venue",
-    )
-    field_name = st.selectbox(
-        "Поле",
-        list(EDITABLE_FIELDS),
-        format_func=lambda name: labels[str(name)],
-        key="edit-field",
-    )
-    raw = st.text_input("Новое значение", key="edit-value")
-    left, right = st.columns(2)
-    if left.button("Поправить поле") and picked is not None and field_name:
-        updated = patch_field(rows[int(picked)], str(field_name), raw)
-        _replace_working(int(picked), updated)
-        st.rerun()
-    if right.button("Пометить недостоверным") and picked is not None:
-        _replace_working(int(picked), mark_unreliable(rows[int(picked)]))
-        st.rerun()
+    _persist_working(current)
 
 
 def _show_verdict(rows: list[PlaceRecord]) -> None:
@@ -239,6 +263,7 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
         llm = make_llm()
         st.session_state["llm_kind"] = type(llm).__name__
         st.session_state["llm_verdict"] = complete_verdict(rows, llm)
+        st.session_state["llm_error"] = llm.last_error()
         usage = llm.last_usage()
         if usage.total_tokens is not None:
             st.session_state["llm_usage"] = usage
@@ -254,7 +279,11 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
         st.write("вывод модели не найден (нет ключа)")
         return
     if not isinstance(verdict, ModelVerdict):
-        st.write("вывод модели не разобран")
+        error = st.session_state.get("llm_error")
+        if isinstance(error, str) and error:
+            st.write(f"вывод модели не разобран ({error})")
+        else:
+            st.write("вывод модели не разобран")
         return
     st.write(f"Интереснее: {verdict.interesting}")
     st.write(f"Чем лучше: {verdict.why_better}")
@@ -295,7 +324,6 @@ def _show_usage() -> None:
 
 def _show_report(rows: list[PlaceRecord]) -> None:
     _show_table(rows)
-    _show_corrections(rows)
     _show_verdict(rows)
     _show_usage()
 
@@ -307,6 +335,7 @@ if st.button("Разобрать зацепки"):
     st.session_state.pop("row_cache", None)
     st.session_state.pop("llm_fp", None)
     st.session_state.pop("llm_usage", None)
+    st.session_state.pop("llm_error", None)
     st.session_state.pop("run_id", None)
     st.session_state["outcome"] = resolve_intake(
         [hook_one, hook_two, hook_three],

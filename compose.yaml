@@ -2,6 +2,8 @@ services:
   app:
     image: salon-compare:${GIT_SHA:-local}
     build: .
+    env_file:
+      - .env
     ports:
       - "8501:8501"
     environment:

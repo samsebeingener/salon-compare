@@ -6,14 +6,22 @@ from pathlib import Path
 import pytest
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust
+from salon_compare.legal import LegalOrg
 from salon_compare.llm import make_llm
 from salon_compare.report import (
     MODEL_DISCLAIMER,
+    SITE_ABOUT_PREVIEW,
+    ModelVerdict,
+    build_evidence_dossier,
     build_prompt,
+    build_user_prompt,
     card_payload,
+    footnote_map,
     mark_unreliable,
     parse_verdict,
     patch_field,
+    table_cell,
+    validate_verdict,
 )
 from salon_compare.score import score_place
 
@@ -85,13 +93,82 @@ def test_no_llm_key_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_prompt_uses_scores_not_buy_advice() -> None:
     row = _place(twogis_rating=_found(4.6), title="Вишня")
-    prompt = build_prompt([row])
+    prompt = build_prompt([row], as_of=AS_OF)
     lowered = prompt.lower()
     assert "вишня" in lowered
     assert "покупай" not in lowered
+    assert "external_research" in lowered
+    assert "trust" in lowered
     scored = score_place(row, as_of=AS_OF)
     assert scored.index is not None
     assert str(scored.index) in prompt
+
+
+def test_evidence_dossier_includes_trust_and_sources() -> None:
+    row = _place(
+        twogis_rating=_found(4.6, "https://2gis.ru/firm/1"),
+        title="Вишня",
+    )
+    dossier = build_evidence_dossier([row], as_of=AS_OF)
+    meta = dossier["meta"]
+    assert isinstance(meta, dict)
+    assert meta.get("external_research") == []
+    venues = dossier["venues"]
+    assert isinstance(venues, list) and len(venues) == 1
+    venue = venues[0]
+    assert isinstance(venue, dict)
+    evidence = venue["evidence"]
+    assert isinstance(evidence, dict)
+    rating = evidence["twogis_rating"]
+    assert isinstance(rating, dict)
+    assert rating["value"] == 4.6
+    assert rating["trust"] == "found"
+    assert rating["source_url"] == "https://2gis.ru/firm/1"
+    assert "twogis_review_count" in evidence
+    assert "twogis_review_count" in venue["missing_fields"]
+
+
+def test_validate_verdict_rejects_unknown_index() -> None:
+    row = _place(twogis_rating=_found(4.6), title="Вишня")
+    scored = score_place(row, as_of=AS_OF)
+    assert scored.index is not None
+    verdict = ModelVerdict(
+        interesting="А",
+        why_better="x",
+        breaks_if="y",
+        compared_index=scored.index + 10,
+    )
+    assert validate_verdict(verdict, [row], as_of=AS_OF) is None
+
+
+def test_validate_verdict_accepts_matching_index() -> None:
+    row = _place(twogis_rating=_found(4.6), title="Вишня")
+    scored = score_place(row, as_of=AS_OF)
+    assert scored.index is not None
+    verdict = ModelVerdict(
+        interesting="А",
+        why_better="x",
+        breaks_if="y",
+        compared_index=scored.index,
+    )
+    assert validate_verdict(verdict, [row], as_of=AS_OF) == verdict
+
+
+def test_parse_verdict_strips_json_fence() -> None:
+    raw = (
+        '```json\n{"interesting":"А","why_better":"b",'
+        '"breaks_if":"c","compared_index":1.0}\n```'
+    )
+    verdict = parse_verdict(raw)
+    assert verdict is not None
+    assert verdict.compared_index == 1.0
+
+
+def test_user_prompt_mentions_dossie_structure() -> None:
+    row = _place(twogis_rating=_found(4.6), title="Вишня")
+    text = build_user_prompt(build_evidence_dossier([row], as_of=AS_OF))
+    assert "Досье:" in text
+    assert "compared_index" in text
 
 
 def test_card_lists_missing_fields() -> None:
@@ -115,12 +192,58 @@ def test_patch_field_is_weak_human_edit() -> None:
     assert after != before
 
 
+def test_empty_patch_clears_field() -> None:
+    row = _place(twogis_rating=_found(4.8))
+    cleared = patch_field(row, "twogis_rating", "  ")
+    assert cleared.twogis_rating.value is None
+    assert cleared.twogis_rating.trust is Trust.MISSING
+
+
 def test_unreliable_object_drops_index() -> None:
     row = mark_unreliable(_place(twogis_rating=_found(4.6)))
     assert row.unreliable is True
     score = score_place(row, as_of=AS_OF)
     assert score.index is None
     assert "недостоверн" in score.note.lower()
+
+
+def test_table_cell_uses_shared_footnotes() -> None:
+    shared = "https://2gis.ru/firm/1"
+    left = _place(
+        title="А",
+        twogis_rating=_found(4.7, shared),
+        hours=_found("пн-вс 10:00-22:00", shared),
+        site_about=_found(
+            "\n".join(["студия"] * 40), "https://pinklemon.example/about"
+        ),
+    )
+    right = _place(
+        venue_id="v2",
+        title="Б",
+        twogis_rating=_found(3.6, shared),
+    )
+    notes = footnote_map([left, right])
+    assert notes[shared] == 1
+    assert notes["https://pinklemon.example/about"] == 2
+    assert table_cell(left, "twogis_rating", notes) == "4.7 [1]"
+    assert table_cell(right, "twogis_rating", notes) == "3.6 [1]"
+    assert table_cell(left, "hours", notes) == "пн-вс 10:00-22:00 [1]"
+    about = table_cell(left, "site_about", notes)
+    assert about.endswith("[2]")
+    assert "http" not in about
+    assert "\n" not in about
+    assert len(about) <= SITE_ABOUT_PREVIEW + 4
+    weak = patch_field(left, "twogis_rating", "4.9")
+    weak_notes = footnote_map([weak])
+    assert table_cell(weak, "twogis_rating", weak_notes) == "4.9 · слабо [1]"
+    pending = _place(
+        legal_candidates=(
+            LegalOrg("1", "ООО А", "https://egrul.example/a"),
+            LegalOrg("2", "ООО Б", "https://egrul.example/b"),
+        )
+    )
+    legal_notes = footnote_map([pending])
+    assert table_cell(pending, "egrul_status", legal_notes) == "уточните юрлицо [1][2]"
 
 
 def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
@@ -132,3 +255,11 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert "недостоверн" in lowered
     assert "_show_cards" not in text
     assert "Индекс пояснение" not in text
+    assert "_show_corrections" not in text
+    assert "update_run" in text
+    assert "@st.dialog" in text
+    assert ":material/edit:" in text
+    assert "footnote_map" in text
+    assert "Источники" in text
+    assert "importlib.reload" in text
+    assert "cell_help" in text
