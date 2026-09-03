@@ -21,6 +21,7 @@ from salon_compare.report import (
     parse_verdict,
     patch_field,
     table_cell,
+    table_cell_parts,
     validate_verdict,
 )
 from salon_compare.score import score_place
@@ -228,6 +229,7 @@ def test_table_cell_uses_shared_footnotes() -> None:
     assert table_cell(left, "twogis_rating", notes) == "4.7 [1]"
     assert table_cell(right, "twogis_rating", notes) == "3.6 [1]"
     assert table_cell(left, "hours", notes) == "пн-вс 10:00-22:00 [1]"
+    assert table_cell_parts(left, "hours", notes) == ("пн-вс 10:00-22:00", "[1]")
     about = table_cell(left, "site_about", notes)
     assert about.endswith("[2]")
     assert "http" not in about
@@ -266,6 +268,14 @@ def test_footnote_map_tolerates_row_without_efrsb() -> None:
     assert footnote_map([row]) == {}  # type: ignore[list-item]
 
 
+def test_neighbor_vs_label_explains_average() -> None:
+    from salon_compare.report import FIELD_LABELS
+
+    labels = dict(FIELD_LABELS)
+    assert "Соседи выше/ниже" in labels["neighbor_vs"]
+    assert "против рейтинга данной точки" in labels["neighbor_vs"]
+
+
 def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     text = (ROOT / "src" / "salon_compare" / "app.py").read_text(encoding="utf-8")
     lowered = text.lower()
@@ -287,3 +297,8 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert "as_sourced_field" in text
     assert "reload(intake)" not in text
     assert "cell_help" in text
+    assert "sc-cell-value" in text
+    assert "font-size: 1.12em" in text
+    assert "font-weight: 700" not in text
+    assert "sc-cell-ref" in text
+    assert "proxy/vpn" in text.lower()

@@ -23,7 +23,10 @@ FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("metro", "Метро"),
     ("address", "Адрес"),
     ("neighbor_count", "Соседи 500 м"),
-    ("neighbor_vs", "Соседи выше/ниже"),
+    (
+        "neighbor_vs",
+        "Соседи выше/ниже — средний рейтинг соседей против рейтинга данной точки",
+    ),
     ("site_about", "Сайт «о нас»"),
     ("egrul_registered_at", "ЕГРЮЛ/ЕГРИП дата"),
     ("egrul_status", "ЕГРЮЛ/ЕГРИП статус"),
@@ -43,7 +46,10 @@ EVIDENCE_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("metro", "Метро"),
     ("address", "Адрес"),
     ("neighbor_count", "Соседи 500 м"),
-    ("neighbor_vs", "Соседи выше/ниже"),
+    (
+        "neighbor_vs",
+        "Соседи выше/ниже — средний рейтинг соседей против рейтинга данной точки",
+    ),
     ("site_about", "Сайт «о нас»"),
     ("egrul_registered_at", "ЕГРЮЛ/ЕГРИП дата"),
     ("egrul_status", "ЕГРЮЛ/ЕГРИП статус"),
@@ -214,19 +220,26 @@ def footnote_marks(urls: tuple[str, ...], mapping: dict[str, int]) -> str:
     return "".join(f"[{item}]" for item in seen)
 
 
-def table_cell(row: PlaceRecord, name: str, mapping: dict[str, int]) -> str:
+def table_cell_parts(
+    row: PlaceRecord, name: str, mapping: dict[str, int]
+) -> tuple[str, str]:
     sources = field_sources(row, name)
     marks = footnote_marks(sources, mapping)
     if name.startswith("egrul_") and row.legal_candidates:
-        return f"уточните юрлицо {marks}".rstrip()
+        return "уточните юрлицо", marks
     field = as_sourced_field(getattr(row, name, None))
     if field is None:
-        return "не найдено"
+        return "не найдено", ""
     if field.trust == Trust.MISSING or field.value is None:
-        return "не найдено"
+        return "не найдено", ""
     body = display_value(name, field.value)
     if field.trust == Trust.WEAK:
         body = f"{body} · слабо"
+    return body, marks
+
+
+def table_cell(row: PlaceRecord, name: str, mapping: dict[str, int]) -> str:
+    body, marks = table_cell_parts(row, name, mapping)
     if marks:
         return f"{body} {marks}"
     return body
