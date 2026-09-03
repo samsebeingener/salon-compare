@@ -30,6 +30,8 @@ def test_classify_demo_triple() -> None:
     assert site.kind is HookKind.WEBSITE
     assert classify_hook("Вишня Таганская").kind is HookKind.NAME
     assert classify_hook("1147746349552").kind is HookKind.OGRN
+    assert classify_hook("319774600285920").kind is HookKind.OGRNIP
+    assert classify_hook("750101059837").kind is HookKind.INN
 
 
 def test_classify_inn_maps_booking_and_free_text() -> None:
@@ -250,6 +252,11 @@ def test_app_accepts_three_hooks_without_report() -> None:
     lowered = text.lower()
     assert "зацепк" in lowered
     assert text.count("st.text_input") >= 3
-    assert "MISSING_VENUE_LABEL" in text
+    assert "HOOK_KIND_LABELS" in text
     assert "replace_slot_search" not in text
+    assert "outcome.status == IntakeStatus.NEED_DISAMBIGUATION" in text
+    assert "reload(intake)" not in text
+    assert "Уточняем данные ..." in text
+    assert "Собираем поля по трём точкам" in text
+    assert "Ждём ответ модели" in text
     assert "сравнительн" not in lowered

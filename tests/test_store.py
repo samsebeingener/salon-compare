@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from salon_compare.collect import PlaceRecord, SourcedField, Trust
+from salon_compare.collect import PlaceRecord, SourcedField, Trust, coerce_place_record
 from salon_compare.legal import LegalOrg
 from salon_compare.llm import LlmUsage
 from salon_compare.report import ModelVerdict
@@ -151,6 +151,27 @@ def test_same_cache_key_skips_factory() -> None:
     assert wrote_again is False
     assert calls["n"] == 1
     assert first[0].venue_id == second[0].venue_id
+
+
+def test_as_sourced_field_accepts_plain_namespace() -> None:
+    from types import SimpleNamespace
+
+    from salon_compare.collect import Trust, as_sourced_field
+
+    sourced = as_sourced_field(
+        SimpleNamespace(value=4.2, source_url="https://x", trust="found")
+    )
+    assert sourced is not None
+    assert sourced.value == 4.2
+    assert sourced.trust == Trust.FOUND
+
+
+def test_coerce_place_record_adds_missing_efrsb() -> None:
+    data = _row().model_dump()
+    data.pop("efrsb", None)
+    upgraded = coerce_place_record(data)
+    assert upgraded is not None
+    assert upgraded.efrsb.trust == Trust.MISSING
 
 
 def test_list_runs_label_has_id_date_and_titles(tmp_path: Path) -> None:

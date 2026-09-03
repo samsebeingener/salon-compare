@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from typing import TypedDict
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 
 class HttpxClientKwargs(TypedDict):
@@ -25,23 +25,28 @@ def httpx_client_kwargs() -> HttpxClientKwargs:
     return {"trust_env": True}
 
 
-def proxy_url_from_env() -> str | None:
-    for name in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+def proxy_urls_from_env() -> tuple[str, ...]:
+    """Уникальные URL как в .env: схему https:// у прокси не переписываем."""
+    found: list[str] = []
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
         raw = os.environ.get(name, "").strip()
-        if raw:
-            return normalize_proxy_url(raw)
-    return None
+        if raw and raw not in found:
+            found.append(raw)
+    return tuple(found)
 
 
-def normalize_proxy_url(raw: str) -> str:
-    """HTTP-прокси в .env часто пишут как https:// — httpx тогда бьёт TLS на прокси."""
-    text = raw.strip()
-    parts = urlsplit(text)
-    if parts.scheme.lower() == "https" and parts.hostname:
-        return urlunsplit(
-            ("http", parts.netloc, parts.path, parts.query, parts.fragment)
-        )
-    return text
+def proxy_url_from_env() -> str | None:
+    urls = proxy_urls_from_env()
+    return urls[0] if urls else None
+
+
+def proxy_channel_name(url: str) -> str:
+    scheme = urlsplit(url).scheme.lower()
+    if scheme == "https":
+        return "proxy-https"
+    if scheme == "http":
+        return "proxy-http"
+    return "proxy"
 
 
 def proxy_public_label(raw: str) -> str:
@@ -53,19 +58,22 @@ def proxy_public_label(raw: str) -> str:
     return f"{scheme}://{host}" if host else scheme
 
 
+def proxy_public_labels() -> str:
+    return ",".join(proxy_public_label(url) for url in proxy_urls_from_env())
+
+
 def llm_transport_attempts() -> tuple[tuple[str, LlmHttpxKwargs], ...]:
-    """Сначала явный proxy=, при сбое — напрямую. Не надеемся на trust_env."""
+    """Каждый уникальный прокси, затем напрямую. Схему URL не меняем."""
     direct: tuple[str, LlmHttpxKwargs] = ("direct", {"trust_env": False})
-    proxy_url = proxy_url_from_env()
-    if proxy_url:
-        via_proxy: tuple[str, LlmHttpxKwargs] = (
-            "proxy",
-            {"trust_env": False, "proxy": proxy_url},
-        )
-        if _truthy("LLM_DIRECT"):
-            return (direct, via_proxy)
-        return (via_proxy, direct)
-    return (direct,)
+    via_proxy: list[tuple[str, LlmHttpxKwargs]] = []
+    for url in proxy_urls_from_env():
+        kwargs: LlmHttpxKwargs = {"trust_env": False, "proxy": url}
+        via_proxy.append((proxy_channel_name(url), kwargs))
+    if not via_proxy:
+        return (direct,)
+    if _truthy("LLM_DIRECT"):
+        return (direct, *via_proxy)
+    return (*via_proxy, direct)
 
 
 def llm_httpx_client_kwargs() -> LlmHttpxKwargs:

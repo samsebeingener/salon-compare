@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from salon_compare.collect import HtmlFetchResult
-from salon_compare.hooks import ClassifiedHook, HookKind, search_query
+from salon_compare.hooks import REGISTRY_KINDS, ClassifiedHook, HookKind, search_query
 from salon_compare.intake import VenueCandidate
 from salon_compare.legal import egrul_url, rbc_brand_names, rbc_search_url
 from salon_compare.maps_parse import candidate_from_maps_url
@@ -66,7 +66,7 @@ class MapsSearchResolver:
         merged = _unique(self._twogis.search(query))
         if merged:
             return merged
-        if hook.kind is HookKind.OGRN:
+        if hook.kind in REGISTRY_KINDS:
             names = self._brands.names_for_ogrn(hook.normalized)
             for name in names:
                 extra = _unique(self._twogis.search(name))
@@ -109,6 +109,13 @@ def _fallback_without_maps(hook: ClassifiedHook) -> VenueCandidate | None:
             title,
             egrul_url(hook.normalized),
             "ogrn",
+        )
+    if hook.kind is HookKind.OGRNIP:
+        return VenueCandidate(
+            f"ogrnip:{hook.normalized}",
+            title,
+            egrul_url(hook.normalized),
+            "ogrnip",
         )
     if hook.kind is HookKind.INN:
         return VenueCandidate(

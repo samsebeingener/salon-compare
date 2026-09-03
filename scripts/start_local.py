@@ -42,8 +42,8 @@ HINTS: dict[str, str] = {
     "LLM_MODEL": "Имя модели, например gemini-3-flash",
     "LLM_USD_PER_1M_PROMPT": "USD за 1M токенов ввода (Enter — пропустить)",
     "LLM_USD_PER_1M_COMPLETION": "USD за 1M токенов выхода (Enter — пропустить)",
-    "HTTP_PROXY": "HTTP-прокси http://логин:пароль@хост:порт (Enter — пропустить)",
-    "HTTPS_PROXY": "HTTPS-прокси, схема http:// на сам прокси (Enter — пропустить)",
+    "HTTP_PROXY": "Прокси по HTTP: http://логин:пароль@хост:порт",
+    "HTTPS_PROXY": "Прокси по TLS: https://логин:пароль@хост:порт",
     "LLM_DIRECT": "1 — сначала прямой запрос к LLM, без прокси (Enter — пропустить)",
 }
 

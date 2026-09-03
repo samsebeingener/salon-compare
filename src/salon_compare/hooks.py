@@ -14,10 +14,26 @@ class HookKind(StrEnum):
     WEBSITE = "website"
     NAME = "name"
     OGRN = "ogrn"
+    OGRNIP = "ogrnip"
     INN = "inn"
     MAPS_LINK = "maps_link"
     BOOKING_LINK = "booking_link"
     FREE_TEXT = "free_text"
+
+
+HOOK_KIND_LABELS: dict[HookKind, str] = {
+    HookKind.WEBSITE: "сайт",
+    HookKind.NAME: "название",
+    HookKind.OGRN: "ОГРН",
+    HookKind.OGRNIP: "ОГРНИП",
+    HookKind.INN: "ИНН",
+    HookKind.MAPS_LINK: "карта",
+    HookKind.BOOKING_LINK: "запись",
+    HookKind.FREE_TEXT: "текст",
+}
+
+REGISTRY_KINDS = frozenset({HookKind.OGRN, HookKind.OGRNIP, HookKind.INN})
+OGRN_KINDS = frozenset({HookKind.OGRN, HookKind.OGRNIP})
 
 
 @dataclass(frozen=True)
@@ -31,8 +47,10 @@ def classify_hook(raw: str) -> ClassifiedHook:
     stripped = raw.strip()
     if re.fullmatch(r"[\d\s]+", stripped):
         digits = re.sub(r"\s+", "", stripped)
-        if len(digits) in {13, 15}:
+        if len(digits) == 13:
             return ClassifiedHook(raw, HookKind.OGRN, digits)
+        if len(digits) == 15:
+            return ClassifiedHook(raw, HookKind.OGRNIP, digits)
         if len(digits) in {10, 12}:
             return ClassifiedHook(raw, HookKind.INN, digits)
 
@@ -52,7 +70,7 @@ def classify_hook(raw: str) -> ClassifiedHook:
 
 
 def search_query(hook: ClassifiedHook) -> str:
-    if hook.kind in {HookKind.OGRN, HookKind.INN}:
+    if hook.kind in REGISTRY_KINDS:
         return hook.normalized
     if hook.kind in {HookKind.WEBSITE, HookKind.BOOKING_LINK}:
         host = urlparse(hook.normalized).netloc.lower()
