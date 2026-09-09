@@ -1,4 +1,4 @@
-# OpenSpec — целевая карта capabilities (Stage 2 + Stage 3a–3f)
+# OpenSpec — целевая карта capabilities (Stage 2 + Stage 3a–3f + Stage 4)
 
 > Карта capabilities и правила merge.  
 > **Stage 3a (2026-09-09):** группа 1 «юридический контур» заархивирована (5 change).  
@@ -6,7 +6,8 @@
 > **Stage 3c (2026-09-09):** группа 3 «отчёт и формула v1» ✅ заархивирована (3 change).  
 > **Stage 3d (2026-09-09):** группа 4 «обогащение карт и disambiguation» ✅ заархивирована (4 change).  
 > **Stage 3e (2026-09-09):** группа 5 «пост-Яндекс и каскад сайт↔юрлицо» ✅ заархивирована (5 change).  
-> **Stage 3f (2026-09-09):** группа 6 «формула v2 (50/25/25)» ✅ заархивирована (`revise-index-available-data`). **Активных change: 0.** См. [инвентаризацию](../docs/openspec-inventory.md#stage-3--прогресс-архивации).
+> **Stage 3f (2026-09-09):** группа 6 «формула v2 (50/25/25)» ✅ заархивирована (`revise-index-available-data`).  
+> **Stage 4 (2026-09-09):** retroactive `add-yandex-map-viz` (PR #40) → live **`streamlit-ui`**. **Активных change: 0.** См. [инвентаризацию](../docs/openspec-inventory.md#stage-3--прогресс-архивации).
 
 ## Что такое `openspec/specs/`
 
@@ -34,10 +35,10 @@
 | `hook-intake` | Три типа зацепки, подтверждение карточек, disambiguation, fallback без карт, slug Яндекс→2ГИС | Архивированы группы 2–5 |
 | `open-data-collect` | Сбор полей салона: **только 2ГИС**, юридический блок, сайт, каскады DDG/РБК/политика | Архивированы группы **1, 4, 5** |
 | `scoring-formula` | Индекс конкурента **50/25/25**, частичный score, репутация без Fedresurs/KAD | **Archived:** `revise-index-available-data` (группа 6, Stage 3f) |
-| `streamlit-ui` | Таблица разборов, правки полей, SQLite runs, **карта Яндекс (только UI)** | Архивированы: `add-sqlite-saved-runs`, `add-report-corrections`, `add-streamlit-dotenv`, `add-streamlit-delivery`, `add-twogis-moscow-region`; **будущий:** retroactive `add-yandex-map-viz` (PR #40) |
+| `streamlit-ui` | Таблица разборов, правки полей, SQLite runs, **карта Яндекс (только UI)** | **Live:** `add-yandex-map-viz` (PR #40); консолидация с `saved-runs` / `report-corrections` — Stage 5 |
 | `llm-report` | Вывод модели, прокси, HTML-отчёт, usage/cost | Архивированы: `add-report-corrections`, `add-html-freshness-and-usage` |
 
-Сейчас в live восемь capability: `project-bootstrap`, `hook-intake`, `open-data-collect`, `saved-runs`, `delivery-readme`, `scoring-formula` (**v2**, 50/25/25), `report-corrections`, `html-freshness`. Группы 4–6 merged в `hook-intake`, `open-data-collect`, `scoring-formula`. Целевой `streamlit-ui` — Stage 4–5.
+Сейчас в live **девять** capability: `project-bootstrap`, `hook-intake`, `open-data-collect`, `saved-runs`, `delivery-readme`, `scoring-formula` (**v2**, 50/25/25), `report-corrections`, `html-freshness`, **`streamlit-ui`** (карта Яндекс, Stage 4). Группы 4–6 merged в `hook-intake`, `open-data-collect`, `scoring-formula`. Полная консолидация UI — Stage 5.
 
 ---
 
@@ -50,7 +51,7 @@
 
 Change `drop-yandex-maps-source` снимает Яндекс Places и поля карт из **сбора данных**. PR #40 (`yandex_viz.py`) — **отдельная** UI-фича; её нельзя смешивать с источниками в `open-data-collect`.
 
-Ключи: `TWOGIS_API_KEY` — сбор; `YANDEX_MAPS_JS_API_KEY` / `YANDEX_GEOCODER_API_KEY` — только отображение в UI (Stage 4: retroactive `add-yandex-map-viz`, не в live spec bootstrap).
+Ключи: `TWOGIS_API_KEY` — сбор; `YANDEX_MAPS_JS_API_KEY` / `YANDEX_GEOCODER_API_KEY` — только отображение в UI (`streamlit-ui` + необязательные плейсхолдеры в `project-bootstrap`). Старый `YANDEX_MAPS_API_KEY` для сбора не используется.
 
 ---
 
@@ -97,5 +98,4 @@ Change `drop-yandex-maps-source` снимает Яндекс Places и поля 
 
 ## Что дальше
 
-1. Retroactive change `add-yandex-map-viz` для PR #40
-2. **Stage 4–5:** консолидация `streamlit-ui` и финальная карта capability
+1. **Stage 5:** консолидация `streamlit-ui` / `llm-report` и финальная карта capability
