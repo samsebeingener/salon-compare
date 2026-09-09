@@ -1,13 +1,13 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3d)
+# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3e)
 
-> Снимок на 2026-09-09. Ветка Stage 3d: `chore/openspec-stage-3d-archive-group-4`.
+> Снимок на 2026-09-09. Ветка Stage 3e: `chore/openspec-stage-3e-archive-group-5`.
 
 ## Сводка
 
 | Метрика | Значение |
 |--------|----------|
-| Активных change в `openspec/changes/` | **6** |
-| Уже в `openspec/changes/archive/` | **21** |
+| Активных change в `openspec/changes/` | **1** |
+| Уже в `openspec/changes/archive/` | **26** |
 | Live-спеки в `openspec/specs/` | **8** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`, `scoring-formula`, `report-corrections`, `html-freshness`) |
 
 ### Рекомендуемый порядок архивации (Stage 3)
@@ -29,7 +29,7 @@
 | Yandex map UI (`yandex_viz.py`, PR #40) — нет change | код есть, OpenSpec нет | Retroactive change (например `add-yandex-map-viz`) перед архивацией UI-фичи |
 | PR #28–31, #33–39 | вне списка 23 change | Follow-up PR поверх уже merged change; не блокируют Stage 3, но Checko (#37) частично смещает `add-legal-registries` |
 
-### Уже архивированные change (17)
+### Уже архивированные change (26)
 
 | change | PR (если известен) |
 |--------|-------------------|
@@ -54,6 +54,11 @@
 | `2026-09-09-add-disambiguation-address` | #20 |
 | `2026-09-09-add-disambiguation-floor-mall` | #21 |
 | `2026-09-09-add-places-hours-district-metro` | #22 |
+| `2026-09-09-drop-yandex-maps-source` | #23 |
+| `2026-09-09-fix-audit-hygiene` | #24 |
+| `2026-09-09-fix-empty-site-html` | #25 |
+| `2026-09-09-fix-twogis-card-website` | #26 |
+| `2026-09-09-add-site-legal-enrichment-cascade` | #27 |
 
 ---
 
@@ -78,7 +83,11 @@
 | | `add-disambiguation-address` | ✅ archived | 2026-09-09 |
 | | `add-disambiguation-floor-mall` | ✅ archived | 2026-09-09 |
 | | `add-places-hours-district-metro` | ✅ archived | 2026-09-09 |
-| 5. Пост-Яндекс и каскад | 5 change | pending | — |
+| **5. Пост-Яндекс и каскад** | `drop-yandex-maps-source` | ✅ archived | 2026-09-09 |
+| | `fix-audit-hygiene` | ✅ archived | 2026-09-09 |
+| | `fix-empty-site-html` | ✅ archived | 2026-09-09 |
+| | `fix-twogis-card-website` | ✅ archived | 2026-09-09 |
+| | `add-site-legal-enrichment-cascade` | ✅ archived | 2026-09-09 |
 | 6. Формула v2 | `revise-index-available-data` | pending | — |
 
 Примечания Stage 3a:
@@ -102,6 +111,13 @@
 - `add-disambiguation-floor-mall` — этаж, комментарий и ТЦ в адресе кандидата из JSON 2ГИС.
 - `add-places-hours-district-metro` — часы, район, метро из Places JSON 2ГИС.
 
+Примечания Stage 3e:
+- `drop-yandex-maps-source` — `--skip-specs` (delta MODIFIED не покрывали сценарии групп 2–4); live вручную: сбор только 2ГИС, репутация без Яндекс, bootstrap без ключа Яндекс Карт (без литерала `YANDEX_MAPS_API_KEY` в spec).
+- `fix-audit-hygiene` — `--skip-specs`; ADDED: slug Яндекс→2ГИС, HTML только по явным маркерам.
+- `fix-empty-site-html` — `--skip-specs`; ADDED: retry `.html`, ОГРН с labeled маркера на сайте; README про `baumanskaya.html`.
+- `fix-twogis-card-website` — `--skip-specs`; ADDED: сайт из HTML карточки, museum/без прокси для 2gis.ru.
+- `add-site-legal-enrichment-cascade` — `--skip-specs`; ADDED: DDG сайта, сайт с РБК, обход контактов/политики для ОГРН/ИНН.
+
 ---
 
 ## Аудит активных change
@@ -119,17 +135,17 @@
 | ~~`add-report-corrections`~~ | Карточки салона, JSON-вердикт LLM, правки полей, «недостоверный» | да | #15 (+ #38 LLM) | да | **Archived** 2026-09-09 |
 | ~~`add-rusprofile-ddg-fallback`~~ | DDG→rusprofile для полей ЕГРЮЛ, полка «слабо», pacer | да | #8 | да | **Archived** 2026-09-09 |
 | ~~`add-scoring-formula`~~ | Индекс 40/25/20/15, частичный score, без нуля за дыры | частично | #14 | да | **Archived** 2026-09-09 (live v1; v2 в `revise-index`) |
-| `add-site-legal-enrichment-cascade` | DDG сайта, РБК→сайт, обход контактов/политики для ОГРН/ИНН | да | #27 (+ #28–31) | да | Archive группа 5 |
+| ~~`add-site-legal-enrichment-cascade`~~ | DDG сайта, РБК→сайт, обход контактов/политики для ОГРН/ИНН | да | #27 (+ #28–31) | да | **Archived** 2026-09-09 |
 | ~~`add-sqlite-saved-runs`~~ | SQLite `data/`, список/открытие разборов, кэш сессии | да | #10 | да | **Archived** 2026-09-09 |
 | ~~`add-streamlit-delivery`~~ | README: укладка, SQLite, рамки, абзац про агента/модели | да | #16 | да | **Archived** 2026-09-09 |
 | ~~`add-streamlit-dotenv`~~ | Загрузка `.env` из корня без python-dotenv | да | #13 | да | **Archived** 2026-09-09 |
 | ~~`add-twogis-moscow-region`~~ | `region_id=32` в поиске 2ГИС (Москва) | да | #12 | да | **Archived** 2026-09-09 |
-| `drop-yandex-maps-source` | Убрать Яндекс Places/поля/ключ; только 2ГИС для данных | да | #23 | да | Archive группа 5; не путать с PR #40 (viz-only) |
-| `fix-audit-hygiene` | HTML «о нас», slug Яндекс→2ГИС, sync live specs, удаление мёртвого кода | да | #24 | да | Archive группа 5; live specs уже без `YANDEX_MAPS_API_KEY` |
-| `fix-empty-site-html` | Retry `{url}.html` после 404; ОГРН только с маркера на сайте | да | #25 (+ #30) | да | Archive группа 5 |
+| ~~`drop-yandex-maps-source`~~ | Убрать Яндекс Places/поля/ключ; только 2ГИС для данных | да | #23 | да | **Archived** 2026-09-09 (`--skip-specs`) |
+| ~~`fix-audit-hygiene`~~ | HTML «о нас», slug Яндекс→2ГИС, sync live specs, удаление мёртвого кода | да | #24 | да | **Archived** 2026-09-09 (`--skip-specs`) |
+| ~~`fix-empty-site-html`~~ | Retry `{url}.html` после 404; ОГРН только с маркера на сайте | да | #25 (+ #30) | да | **Archived** 2026-09-09 (`--skip-specs`) |
 | ~~`fix-live-collect-honesty`~~ | Не первая radio; честные реестры; ИНН≠ОГРН; соседи 500 м | да | #7 | да | **Archived** 2026-09-09 |
 | ~~`fix-rusprofile-live-collect`~~ | POST DDG; ложная JSON-капча; статус/ОКВЭД rusprofile | да | #9 | да | **Archived** 2026-09-09 |
-| `fix-twogis-card-website` | Сайт из HTML карточки 2ГИС при пустом JSON | да | #26 | да | Archive группа 5 |
+| ~~`fix-twogis-card-website`~~ | Сайт из HTML карточки 2ГИС при пустом JSON | да | #26 | да | **Archived** 2026-09-09 (`--skip-specs`) |
 | `revise-index-available-data` | Индекс 50/25/25; без Fedresurs/KAD в сборе и UI; репутация по рейтингу+отзывам | да | #32 (+ #33–34) | **нет файла** | Archive группа 6; **сначала** добавить `tasks.md` или явную отметку в archive |
 
 ---
@@ -146,9 +162,9 @@
 
 | файл | покрывает (кратко) | заметки |
 |------|-------------------|---------|
-| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation (адрес, этаж/ТЦ), fallback без карт, ОГРН→бренд РБК | группы 2–4 merged |
-| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, часы/район/метро/свежесть, сквозной сайт с карт | scoring v2 (50/25/25) — в change `revise-index` |
-| `openspec/specs/scoring-formula/spec.md` | индекс **v1** 40/25/20/15, частичный score, недостоверный | v2 в `revise-index` (Stage 3f) |
+| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation (адрес, этаж/ТЦ), fallback без карт, ОГРН→бренд РБК, slug Яндекс→2ГИС | группы 2–5 merged |
+| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, часы/район/метро/свежесть, сквозной сайт с карт, DDG/РБК/политика, HTML карточки 2ГИС | scoring v2 (50/25/25) — в change `revise-index` |
+| `openspec/specs/scoring-formula/spec.md` | индекс **v1** 40/25/20/15, репутация только 2ГИС, частичный score, недостоверный | v2 в `revise-index` (Stage 3f) |
 | `openspec/specs/report-corrections/spec.md` | карточки, LLM-вердикт, правки, недостоверный | из группы 3 |
 | `openspec/specs/html-freshness/spec.md` | HTML часы/свежесть/плюс-минус, usage токенов | из группы 3 |
 | `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env`, dotenv, Streamlit, README | viz-ключи PR #40 в live spec не отражены |
@@ -161,7 +177,7 @@
 
 1. Retroactive change для Yandex map UI.
 2. `tasks.md` для `revise-index-available-data` (или waiver в archive).
-3. **Stage 3e:** архивация группы 5 (пост-Яндекс и каскад сайт↔юрлицо).
+3. **Stage 3f:** архивация группы 6 (`revise-index-available-data`).
 
 ---
 
