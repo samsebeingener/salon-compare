@@ -1,6 +1,7 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3f + Stage 4)
+# OpenSpec — инвентаризация
 
-> Снимок на 2026-09-09. Ветка Stage 4: `chore/openspec-stage-4-yandex-map-viz`.
+> **Статус:** CLOSED / complete (Stage 5, 2026-09-09)  
+> Финальный отчёт: [openspec-cleanup-report.md](openspec-cleanup-report.md)
 
 ## Сводка
 
@@ -28,7 +29,7 @@
 | ~~Yandex map UI (`yandex_viz.py`, PR #40)~~ | ✅ закрыт Stage 4 | `2026-09-09-add-yandex-map-viz` → live `streamlit-ui` |
 | PR #28–31, #33–39 | вне списка 23 change | Follow-up PR поверх уже merged change; не блокируют Stage 3, но Checko (#37) частично смещает `add-legal-registries` |
 
-### Уже архивированные change (27)
+### Уже архивированные change (28)
 
 | change | PR (если известен) |
 |--------|-------------------|
@@ -182,9 +183,11 @@
 
 ---
 
-## Следующие шаги
+## Stage 5 — закрытие
 
-1. **Stage 5:** консолидация остальных UI-capability в `streamlit-ui` / `llm-report` (см. [openspec/README.md](../openspec/README.md)).
+- Финальная валидация: `openspec list` → 0 active; `openspec validate --specs` → 9/9; `openspec doctor` → ok; quality gate → 260 passed.
+- `openspec/changes/` содержит только `archive/` (28 change).
+- Отчёт: [openspec-cleanup-report.md](openspec-cleanup-report.md).
 
 ---
 

@@ -156,7 +156,9 @@ HTTPS_PROXY=https://USER:PASSWORD@HOST:PORT
 
 ## Документы
 
-- [docs/openspec-inventory.md](docs/openspec-inventory.md) — инвентаризация OpenSpec change (Stage 1)
+- [docs/openspec-cleanup-report.md](docs/openspec-cleanup-report.md) — финальный отчёт OpenSpec hygiene (Stages 0–5)
+- [docs/openspec-inventory.md](docs/openspec-inventory.md) — инвентаризация и история архивации change
+- [openspec/README.md](openspec/README.md) — live capability, чеклист ревьюера, maintenance
 - [ПОДГОТОВКА.md](ПОДГОТОВКА.md) — согласованные правила
 - [Анализ маникюрных в Москве.html](Анализ%20маникюрных%20в%20Москве.html) — текст задания
 - [AGENT_RULES.md](AGENT_RULES.md) — ограничения для агента
