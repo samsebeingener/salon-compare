@@ -95,3 +95,11 @@
 2. `tasks.md` для `revise-index-available-data` (или waiver в archive).
 3. Stage 3: архивация по группам 1→6 с merge delta → `openspec/specs/`.
 4. После merge — вынести `scoring-formula` в live specs (сейчас только в changes).
+
+---
+
+## Stage 2 — целевая структура specs
+
+Целевая карта из **шести** capability (`project-bootstrap`, `hook-intake`, `open-data-collect`, `scoring-formula`, `streamlit-ui`, `llm-report`), правило «Яндекс.Карты = только UI в `streamlit-ui`», чеклист ревьюера «spec ↔ код» и порядок merge при архивации — в **[openspec/README.md](../openspec/README.md)**.
+
+Stage 2 — только планирование; архивация change и полные тела `spec.md` — Stage 3+.
