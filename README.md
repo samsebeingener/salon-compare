@@ -156,6 +156,7 @@ HTTPS_PROXY=https://USER:PASSWORD@HOST:PORT
 
 ## Документы
 
+- [docs/openspec-inventory.md](docs/openspec-inventory.md) — инвентаризация OpenSpec change (Stage 1)
 - [ПОДГОТОВКА.md](ПОДГОТОВКА.md) — согласованные правила
 - [Анализ маникюрных в Москве.html](Анализ%20маникюрных%20в%20Москве.html) — текст задания
 - [AGENT_RULES.md](AGENT_RULES.md) — ограничения для агента
