@@ -1,8 +1,9 @@
-# OpenSpec — целевая карта capabilities (Stage 2 + Stage 3a + Stage 3b)
+# OpenSpec — целевая карта capabilities (Stage 2 + Stage 3a–3c)
 
 > Карта capabilities и правила merge.  
 > **Stage 3a (2026-09-09):** группа 1 «юридический контур» заархивирована (5 change).  
-> **Stage 3b (2026-09-09):** группа 2 «инфраструктура и UX» заархивирована (5 change → `archive/2026-09-09-*`). Активных change: **13**. См. [инвентаризацию](../docs/openspec-inventory.md#stage-3--прогресс-архивации).
+> **Stage 3b (2026-09-09):** группа 2 «инфраструктура и UX» заархивирована (5 change).  
+> **Stage 3c (2026-09-09):** группа 3 «отчёт и формула v1» ✅ заархивирована (3 change → `archive/2026-09-09-add-scoring-formula`, `add-report-corrections`, `add-html-freshness-and-usage`). Активных change: **10**. См. [инвентаризацию](../docs/openspec-inventory.md#stage-3--прогресс-архивации).
 
 ## Что такое `openspec/specs/`
 
@@ -14,7 +15,7 @@
 | `openspec/changes/<имя>/` | Активная работа: proposal, design, tasks, дельты к specs |
 | `openspec/changes/archive/` | Завершённые change (история решений) |
 
-Правило: код в `main` не должен расходиться со `openspec/specs/` дольше одного PR. Пока 13 активных change не заархивированы, часть «правды» всё ещё лежит в `openspec/changes/` — см. [инвентаризацию](../docs/openspec-inventory.md).
+Правило: код в `main` не должен расходиться со `openspec/specs/` дольше одного PR. Пока 10 активных change не заархивированы, часть «правды» всё ещё лежит в `openspec/changes/` — см. [инвентаризацию](../docs/openspec-inventory.md).
 
 Цикл работы с OpenSpec описан в [CONTRIBUTING.md — раздел OpenSpec](../CONTRIBUTING.md#openspec).
 
@@ -29,11 +30,11 @@
 | `project-bootstrap` | Запуск проекта, `.env`, Docker, quality gate (uv, CI, линтеры) | Уже частично в live + дельты `fix-audit-hygiene` |
 | `hook-intake` | Три типа зацепки, подтверждение карточек, disambiguation, fallback без карт | Архивированные `add-hook-intake` + группы 2–4: `add-hook-fallback-without-maps`, `add-disambiguation-address`, `add-disambiguation-floor-mall`, `fix-audit-hygiene` |
 | `open-data-collect` | Сбор полей салона: 2ГИС, юридический блок, сайт, каскады обогащения | Группы **1, 4, 5**: юрреестры и честный сбор, cross-source enrichment, часы/район/метро, отказ от Яндекс Places как источника, каскад сайт↔юрлицо |
-| `scoring-formula` | Индекс конкурента **50/25/25**, частичный score, репутация без Fedresurs/KAD | **Primary:** `revise-index-available-data` (группа 6). **Исторический контекст:** `add-scoring-formula` (40/25/20/15), `drop-yandex-maps-source` |
-| `streamlit-ui` | Таблица разборов, правки полей, SQLite runs, **карта Яндекс (только UI)** | `add-sqlite-saved-runs`, `add-report-corrections`, `add-streamlit-dotenv`, `add-streamlit-delivery`, `add-twogis-moscow-region`; **будущий:** retroactive `add-yandex-map-viz` (PR #40) |
-| `llm-report` | Вывод модели, прокси, HTML-отчёт, usage/cost | `add-report-corrections`, `add-html-freshness-and-usage` (+ связанные правки LLM из follow-up PR) |
+| `scoring-formula` | Индекс конкурента **50/25/25** (целевой), частичный score, репутация без Fedresurs/KAD | **Primary:** `revise-index-available-data` (группа 6). **Live сейчас:** v1 (40/25/20/15) из `add-scoring-formula` |
+| `streamlit-ui` | Таблица разборов, правки полей, SQLite runs, **карта Яндекс (только UI)** | Архивированы: `add-sqlite-saved-runs`, `add-report-corrections`, `add-streamlit-dotenv`, `add-streamlit-delivery`, `add-twogis-moscow-region`; **будущий:** retroactive `add-yandex-map-viz` (PR #40) |
+| `llm-report` | Вывод модели, прокси, HTML-отчёт, usage/cost | Архивированы: `add-report-corrections`, `add-html-freshness-and-usage` |
 
-Сейчас в live пять capability: `project-bootstrap`, `hook-intake`, `open-data-collect`, `saved-runs`, `delivery-readme`. Остальные (`scoring-formula`, `streamlit-ui`, `llm-report`) появятся при архивации соответствующих change.
+Сейчас в live восемь capability: `project-bootstrap`, `hook-intake`, `open-data-collect`, `saved-runs`, `delivery-readme`, `scoring-formula` (v1), `report-corrections`, `html-freshness`. Целевой `streamlit-ui` и обновление `scoring-formula` до v2 — при архивации групп 4–6.
 
 ---
 
@@ -95,6 +96,5 @@ Change `drop-yandex-maps-source` снимает Яндекс Places и поля 
 
 1. Retroactive change `add-yandex-map-viz` для PR #40
 2. `tasks.md` или waiver для `revise-index-available-data`
-3. **Stage 3c:** архивация группы 3 (отчёт и формула v1) — 3 change
-4. **Stage 3d–3f:** группы 4→6
-5. **Stage 4–5:** полные тела `spec.md` для `scoring-formula`, `streamlit-ui`, `llm-report`
+3. **Stage 3d–3f:** группы 4→6 (обогащение карт, пост-Яндекс, формула v2)
+4. **Stage 4–5:** консолидация `streamlit-ui` и обновление `scoring-formula` до v2 (50/25/25)
