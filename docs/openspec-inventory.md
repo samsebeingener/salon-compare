@@ -1,14 +1,14 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3f)
+# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3f + Stage 4)
 
-> Снимок на 2026-09-09. Ветка Stage 3f: `chore/openspec-stage-3f-archive-revise-index`.
+> Снимок на 2026-09-09. Ветка Stage 4: `chore/openspec-stage-4-yandex-map-viz`.
 
 ## Сводка
 
 | Метрика | Значение |
 |--------|----------|
 | Активных change в `openspec/changes/` | **0** |
-| Уже в `openspec/changes/archive/` | **27** |
-| Live-спеки в `openspec/specs/` | **8** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`, `scoring-formula`, `report-corrections`, `html-freshness`) |
+| Уже в `openspec/changes/archive/` | **28** |
+| Live-спеки в `openspec/specs/` | **9** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`, `scoring-formula`, `report-corrections`, `html-freshness`, **`streamlit-ui`**) |
 
 ### Рекомендуемый порядок архивации (Stage 3)
 
@@ -25,7 +25,7 @@
 
 | Пробел | Статус | Действие |
 |--------|--------|----------|
-| Yandex map UI (`yandex_viz.py`, PR #40) — нет change | код есть, OpenSpec нет | Retroactive change (например `add-yandex-map-viz`) перед архивацией UI-фичи |
+| ~~Yandex map UI (`yandex_viz.py`, PR #40)~~ | ✅ закрыт Stage 4 | `2026-09-09-add-yandex-map-viz` → live `streamlit-ui` |
 | PR #28–31, #33–39 | вне списка 23 change | Follow-up PR поверх уже merged change; не блокируют Stage 3, но Checko (#37) частично смещает `add-legal-registries` |
 
 ### Уже архивированные change (27)
@@ -59,6 +59,7 @@
 | `2026-09-09-fix-twogis-card-website` | #26 |
 | `2026-09-09-add-site-legal-enrichment-cascade` | #27 |
 | `2026-09-09-revise-index-available-data` | #32 (+ #33–34) |
+| `2026-09-09-add-yandex-map-viz` | #40 |
 
 ---
 
@@ -89,6 +90,10 @@
 | | `fix-twogis-card-website` | ✅ archived | 2026-09-09 |
 | | `add-site-legal-enrichment-cascade` | ✅ archived | 2026-09-09 |
 | 6. Формула v2 | `revise-index-available-data` | ✅ archived | 2026-09-09 |
+| **7. Yandex map UI (Stage 4)** | `add-yandex-map-viz` | ✅ archived | 2026-09-09 |
+
+Примечания Stage 4:
+- `add-yandex-map-viz` — retroactive PR #40; создан live `streamlit-ui`; delta `project-bootstrap` — необязательные `YANDEX_MAPS_JS_API_KEY` / `YANDEX_GEOCODER_API_KEY`.
 
 Примечания Stage 3a:
 - `add-legal-registries` — `--skip-specs` (live specs уже были синхронизированы вперёд через `fix-audit-hygiene`).
@@ -157,7 +162,7 @@
 
 | что в коде | PR | OpenSpec change | рекомендация |
 |------------|-----|-----------------|--------------|
-| `src/salon_compare/yandex_viz.py` — опциональная карта Яндекс (JS API + geocoder), ключи `YANDEX_MAPS_JS_API_KEY` / `YANDEX_GEOCODER_API_KEY` | #40 | **отсутствует** | Retroactive change `add-yandex-map-viz` (или аналог) → затем archive; не смешивать с `drop-yandex-maps-source` (данные карт только 2ГИС) |
+| ~~`yandex_viz.py`~~ | #40 | **`add-yandex-map-viz`** ✅ | Закрыто Stage 4 — live `streamlit-ui` |
 
 ---
 
@@ -170,16 +175,16 @@
 | `openspec/specs/scoring-formula/spec.md` | индекс **v2** 50/25/25, репутация только 2ГИС, частичный score, недостоверный | из группы 6 (Stage 3f) |
 | `openspec/specs/report-corrections/spec.md` | карточки, LLM-вердикт, правки, недостоверный | из группы 3 |
 | `openspec/specs/html-freshness/spec.md` | HTML часы/свежесть/плюс-минус, usage токенов | из группы 3 |
-| `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env`, dotenv, Streamlit, README | viz-ключи PR #40 в live spec не отражены |
+| `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env`, dotenv, Streamlit, README, viz-ключи | Stage 4 merged |
 | `openspec/specs/saved-runs/spec.md` | SQLite `data/`, сохранение/открытие разборов | из группы 2 |
 | `openspec/specs/delivery-readme/spec.md` | состав README сдачи | из группы 2 |
+| `openspec/specs/streamlit-ui/spec.md` | опциональная карта Яндекс, два viz-ключа, viewport | Stage 4 (`add-yandex-map-viz`, PR #40) |
 
 ---
 
 ## Следующие шаги
 
-1. Retroactive change для Yandex map UI (`add-yandex-map-viz`, PR #40).
-2. **Stage 4–5:** консолидация `streamlit-ui` и финальная карта capability (см. [openspec/README.md](../openspec/README.md)).
+1. **Stage 5:** консолидация остальных UI-capability в `streamlit-ui` / `llm-report` (см. [openspec/README.md](../openspec/README.md)).
 
 ---
 
