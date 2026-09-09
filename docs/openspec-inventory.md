@@ -1,13 +1,13 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3e)
+# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3f)
 
-> Снимок на 2026-09-09. Ветка Stage 3e: `chore/openspec-stage-3e-archive-group-5`.
+> Снимок на 2026-09-09. Ветка Stage 3f: `chore/openspec-stage-3f-archive-revise-index`.
 
 ## Сводка
 
 | Метрика | Значение |
 |--------|----------|
-| Активных change в `openspec/changes/` | **1** |
-| Уже в `openspec/changes/archive/` | **26** |
+| Активных change в `openspec/changes/` | **0** |
+| Уже в `openspec/changes/archive/` | **27** |
 | Live-спеки в `openspec/specs/` | **8** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`, `scoring-formula`, `report-corrections`, `html-freshness`) |
 
 ### Рекомендуемый порядок архивации (Stage 3)
@@ -25,11 +25,10 @@
 
 | Пробел | Статус | Действие |
 |--------|--------|----------|
-| `revise-index-available-data` — нет `tasks.md` | change без чеклиста | Добавить retroactive `tasks.md` или зафиксировать в archive README, что tasks не велись |
 | Yandex map UI (`yandex_viz.py`, PR #40) — нет change | код есть, OpenSpec нет | Retroactive change (например `add-yandex-map-viz`) перед архивацией UI-фичи |
 | PR #28–31, #33–39 | вне списка 23 change | Follow-up PR поверх уже merged change; не блокируют Stage 3, но Checko (#37) частично смещает `add-legal-registries` |
 
-### Уже архивированные change (26)
+### Уже архивированные change (27)
 
 | change | PR (если известен) |
 |--------|-------------------|
@@ -59,6 +58,7 @@
 | `2026-09-09-fix-empty-site-html` | #25 |
 | `2026-09-09-fix-twogis-card-website` | #26 |
 | `2026-09-09-add-site-legal-enrichment-cascade` | #27 |
+| `2026-09-09-revise-index-available-data` | #32 (+ #33–34) |
 
 ---
 
@@ -88,7 +88,7 @@
 | | `fix-empty-site-html` | ✅ archived | 2026-09-09 |
 | | `fix-twogis-card-website` | ✅ archived | 2026-09-09 |
 | | `add-site-legal-enrichment-cascade` | ✅ archived | 2026-09-09 |
-| 6. Формула v2 | `revise-index-available-data` | pending | — |
+| 6. Формула v2 | `revise-index-available-data` | ✅ archived | 2026-09-09 |
 
 Примечания Stage 3a:
 - `add-legal-registries` — `--skip-specs` (live specs уже были синхронизированы вперёд через `fix-audit-hygiene`).
@@ -118,6 +118,9 @@
 - `fix-twogis-card-website` — `--skip-specs`; ADDED: сайт из HTML карточки, museum/без прокси для 2gis.ru.
 - `add-site-legal-enrichment-cascade` — `--skip-specs`; ADDED: DDG сайта, сайт с РБК, обход контактов/политики для ОГРН/ИНН.
 
+Примечания Stage 3f:
+- `revise-index-available-data` — retroactive `tasks.md`; `--skip-specs` (MODIFIED header v1→v2); live вручную: `scoring-formula` **v2 (50/25/25)**, `open-data-collect` — ADDED «Федресурс и КАД не запрашиваются», убран сценарий KAD-оболочки.
+
 ---
 
 ## Аудит активных change
@@ -146,7 +149,7 @@
 | ~~`fix-live-collect-honesty`~~ | Не первая radio; честные реестры; ИНН≠ОГРН; соседи 500 м | да | #7 | да | **Archived** 2026-09-09 |
 | ~~`fix-rusprofile-live-collect`~~ | POST DDG; ложная JSON-капча; статус/ОКВЭД rusprofile | да | #9 | да | **Archived** 2026-09-09 |
 | ~~`fix-twogis-card-website`~~ | Сайт из HTML карточки 2ГИС при пустом JSON | да | #26 | да | **Archived** 2026-09-09 (`--skip-specs`) |
-| `revise-index-available-data` | Индекс 50/25/25; без Fedresurs/KAD в сборе и UI; репутация по рейтингу+отзывам | да | #32 (+ #33–34) | **нет файла** | Archive группа 6; **сначала** добавить `tasks.md` или явную отметку в archive |
+| ~~`revise-index-available-data`~~ | Индекс 50/25/25; без Fedresurs/KAD в сборе и UI; репутация по рейтингу 2ГИС | да | #32 (+ #33–34) | да | **Archived** 2026-09-09 (`--skip-specs`) |
 
 ---
 
@@ -163,8 +166,8 @@
 | файл | покрывает (кратко) | заметки |
 |------|-------------------|---------|
 | `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation (адрес, этаж/ТЦ), fallback без карт, ОГРН→бренд РБК, slug Яндекс→2ГИС | группы 2–5 merged |
-| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, часы/район/метро/свежесть, сквозной сайт с карт, DDG/РБК/политика, HTML карточки 2ГИС | scoring v2 (50/25/25) — в change `revise-index` |
-| `openspec/specs/scoring-formula/spec.md` | индекс **v1** 40/25/20/15, репутация только 2ГИС, частичный score, недостоверный | v2 в `revise-index` (Stage 3f) |
+| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок без GET fedresurs/kad, `region_id=32`, часы/район/метро, сквозной сайт с карт, DDG/РБК/политика | группы 1–5 + 3f merged |
+| `openspec/specs/scoring-formula/spec.md` | индекс **v2** 50/25/25, репутация только 2ГИС, частичный score, недостоверный | из группы 6 (Stage 3f) |
 | `openspec/specs/report-corrections/spec.md` | карточки, LLM-вердикт, правки, недостоверный | из группы 3 |
 | `openspec/specs/html-freshness/spec.md` | HTML часы/свежесть/плюс-минус, usage токенов | из группы 3 |
 | `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env`, dotenv, Streamlit, README | viz-ключи PR #40 в live spec не отражены |
@@ -175,9 +178,8 @@
 
 ## Следующие шаги
 
-1. Retroactive change для Yandex map UI.
-2. `tasks.md` для `revise-index-available-data` (или waiver в archive).
-3. **Stage 3f:** архивация группы 6 (`revise-index-available-data`).
+1. Retroactive change для Yandex map UI (`add-yandex-map-viz`, PR #40).
+2. **Stage 4–5:** консолидация `streamlit-ui` и финальная карта capability (см. [openspec/README.md](../openspec/README.md)).
 
 ---
 
