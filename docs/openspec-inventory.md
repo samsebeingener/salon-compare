@@ -1,14 +1,14 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a)
+# OpenSpec — инвентаризация (Stage 1 + Stage 3a + Stage 3b)
 
-> Снимок на 2026-09-09. Ветка Stage 3a: `chore/openspec-stage-3a-archive-group-1`.
+> Снимок на 2026-09-09. Ветка Stage 3b: `chore/openspec-stage-3b-archive-group-2`.
 
 ## Сводка
 
 | Метрика | Значение |
 |--------|----------|
-| Активных change в `openspec/changes/` | **18** |
-| Уже в `openspec/changes/archive/` | **9** |
-| Live-спеки в `openspec/specs/` | **3** (`hook-intake`, `open-data-collect`, `project-bootstrap`) |
+| Активных change в `openspec/changes/` | **13** |
+| Уже в `openspec/changes/archive/` | **14** |
+| Live-спеки в `openspec/specs/` | **5** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`) |
 
 ### Рекомендуемый порядок архивации (Stage 3)
 
@@ -29,7 +29,7 @@
 | Yandex map UI (`yandex_viz.py`, PR #40) — нет change | код есть, OpenSpec нет | Retroactive change (например `add-yandex-map-viz`) перед архивацией UI-фичи |
 | PR #28–31, #33–39 | вне списка 23 change | Follow-up PR поверх уже merged change; не блокируют Stage 3, но Checko (#37) частично смещает `add-legal-registries` |
 
-### Уже архивированные change (9)
+### Уже архивированные change (14)
 
 | change | PR (если известен) |
 |--------|-------------------|
@@ -42,6 +42,11 @@
 | `2026-09-09-add-rusprofile-ddg-fallback` | #8 |
 | `2026-09-09-fix-rusprofile-live-collect` | #9 |
 | `2026-09-09-add-rbc-companies-ogrn` | #18 |
+| `2026-09-09-add-sqlite-saved-runs` | #10 |
+| `2026-09-09-add-hook-fallback-without-maps` | #11 |
+| `2026-09-09-add-twogis-moscow-region` | #12 |
+| `2026-09-09-add-streamlit-dotenv` | #13 |
+| `2026-09-09-add-streamlit-delivery` | #16 |
 
 ---
 
@@ -54,7 +59,11 @@
 | | `add-rusprofile-ddg-fallback` | ✅ archived | 2026-09-09 |
 | | `fix-rusprofile-live-collect` | ✅ archived | 2026-09-09 |
 | | `add-rbc-companies-ogrn` | ✅ archived | 2026-09-09 |
-| 2. Инфраструктура и UX | 5 change | pending | — |
+| **2. Инфраструктура и UX** | `add-sqlite-saved-runs` | ✅ archived | 2026-09-09 |
+| | `add-hook-fallback-without-maps` | ✅ archived | 2026-09-09 |
+| | `add-twogis-moscow-region` | ✅ archived | 2026-09-09 |
+| | `add-streamlit-dotenv` | ✅ archived | 2026-09-09 |
+| | `add-streamlit-delivery` | ✅ archived | 2026-09-09 |
 | 3. Отчёт и формула v1 | 3 change | pending | — |
 | 4. Обогащение карт | 4 change | pending | — |
 | 5. Пост-Яндекс и каскад | 5 change | pending | — |
@@ -63,6 +72,12 @@
 Примечания Stage 3a:
 - `add-legal-registries` — `--skip-specs` (live specs уже были синхронизированы вперёд через `fix-audit-hygiene`).
 - Остальные 4 change группы 1 — merge delta → live specs; после merge каскада восстановлен контур «только 2ГИС» (без `и/или Яндекс`).
+
+Примечания Stage 3b:
+- `add-sqlite-saved-runs` — delta `project-bootstrap` дополнен сценарием «README описывает прогон» перед merge.
+- `add-hook-fallback-without-maps` — delta `hook-intake` дополнены сценарии «Ни одного кандидата» и «Пустой radio…»; `README сдачи без секретов` переведён из MODIFIED в ADDED.
+- `add-streamlit-delivery` — `Интерфейс трёх зацепок…` переведён из MODIFIED в ADDED; создан live `delivery-readme`.
+- Новые live capability: `saved-runs`, `delivery-readme`.
 
 ---
 
@@ -73,7 +88,7 @@
 | `add-cross-source-enrichment` | Сквозной сбор: сайт с карт, ОГРН→бренд РБК→поиск карт, поля `org`/`contact_groups` в 2ГИС | да | #19 | да | Archive группа 4; merge delta в `open-data-collect` / `hook-intake` |
 | `add-disambiguation-address` | Адрес в подписи radio при нескольких карточках с одним названием | да | #20 | да | Archive группа 4 |
 | `add-disambiguation-floor-mall` | Этаж, комментарий и ТЦ в адресе кандидата из JSON 2ГИС | да | #21 | да | Archive группа 4 |
-| `add-hook-fallback-without-maps` | Без ключей карт — fallback одной точки по типу зацепки, демо до таблицы | да | #11 | да | Archive группа 2 |
+| ~~`add-hook-fallback-without-maps`~~ | Без ключей карт — fallback одной точки по типу зацепки, демо до таблицы | да | #11 | да | **Archived** 2026-09-09 |
 | `add-html-freshness-and-usage` | HTML: часы, свежесть отзывов, плюс/минус; блок расхода LLM (токены/cost) | частично | #17 | да | Archive группа 3 **после** `revise-index`: поля свежести в коде есть, но scoring v2 не требует 90d; usage — да |
 | ~~`add-legal-registries`~~ | ЕГРЮЛ, Федресурс, КАД; неоднозначность юрлица; один GET на реестр | частично | #6 (+ #37 Checko) | да | **Archived** 2026-09-09 (`--skip-specs`) |
 | `add-places-hours-district-metro` | Часы, район, метро из Places JSON 2ГИС | да | #22 | да | Archive группа 4 |
@@ -82,10 +97,10 @@
 | ~~`add-rusprofile-ddg-fallback`~~ | DDG→rusprofile для полей ЕГРЮЛ, полка «слабо», pacer | да | #8 | да | **Archived** 2026-09-09 |
 | `add-scoring-formula` | Индекс 40/25/20/15, частичный score, без нуля за дыры | частично | #14 | да | Archive группа 3 **после** `revise-index`: заменён на 50/25/25 |
 | `add-site-legal-enrichment-cascade` | DDG сайта, РБК→сайт, обход контактов/политики для ОГРН/ИНН | да | #27 (+ #28–31) | да | Archive группа 5 |
-| `add-sqlite-saved-runs` | SQLite `data/`, список/открытие разборов, кэш сессии | да | #10 | да | Archive группа 2 |
-| `add-streamlit-delivery` | README: укладка, SQLite, рамки, абзац про агента/модели | да | #16 | да | Archive группа 2 |
-| `add-streamlit-dotenv` | Загрузка `.env` из корня без python-dotenv | да | #13 | да | Archive группа 2 |
-| `add-twogis-moscow-region` | `region_id=32` в поиске 2ГИС (Москва) | да | #12 | да | Archive группа 2 |
+| ~~`add-sqlite-saved-runs`~~ | SQLite `data/`, список/открытие разборов, кэш сессии | да | #10 | да | **Archived** 2026-09-09 |
+| ~~`add-streamlit-delivery`~~ | README: укладка, SQLite, рамки, абзац про агента/модели | да | #16 | да | **Archived** 2026-09-09 |
+| ~~`add-streamlit-dotenv`~~ | Загрузка `.env` из корня без python-dotenv | да | #13 | да | **Archived** 2026-09-09 |
+| ~~`add-twogis-moscow-region`~~ | `region_id=32` в поиске 2ГИС (Москва) | да | #12 | да | **Archived** 2026-09-09 |
 | `drop-yandex-maps-source` | Убрать Яндекс Places/поля/ключ; только 2ГИС для данных | да | #23 | да | Archive группа 5; не путать с PR #40 (viz-only) |
 | `fix-audit-hygiene` | HTML «о нас», slug Яндекс→2ГИС, sync live specs, удаление мёртвого кода | да | #24 | да | Archive группа 5; live specs уже без `YANDEX_MAPS_API_KEY` |
 | `fix-empty-site-html` | Retry `{url}.html` после 404; ОГРН только с маркера на сайте | да | #25 (+ #30) | да | Archive группа 5 |
@@ -108,9 +123,11 @@
 
 | файл | покрывает (кратко) | заметки |
 |------|-------------------|---------|
-| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation, fallback | delta из групп 2–4 частично ещё только в changes |
-| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, без Яндекс Places | обновлён под одну карту; scoring 50/25/25 — в change `revise-index`, не в live |
-| `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env.example`, Streamlit hello | без ключа Яндекс Карт; viz-ключи PR #40 в live spec не отражены |
+| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation, fallback без карт | группа 2 merged; disambiguation адрес/этаж — в changes группы 4 |
+| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, кэш сессии | scoring 50/25/25 — в change `revise-index`, не в live |
+| `openspec/specs/project-bootstrap/spec.md` | uv, CI, `.env`, dotenv, Streamlit, README | viz-ключи PR #40 в live spec не отражены |
+| `openspec/specs/saved-runs/spec.md` | SQLite `data/`, сохранение/открытие разборов | из группы 2 |
+| `openspec/specs/delivery-readme/spec.md` | состав README сдачи | из группы 2; часть UI (индекс, карточки) — в changes группы 3 |
 
 ---
 
@@ -118,7 +135,7 @@
 
 1. Retroactive change для Yandex map UI.
 2. `tasks.md` для `revise-index-available-data` (или waiver в archive).
-3. **Stage 3b:** архивация группы 2 (инфраструктура и UX).
+3. **Stage 3c:** архивация группы 3 (отчёт и формула v1).
 4. После merge — вынести `scoring-formula` в live specs (сейчас только в changes).
 
 ---
