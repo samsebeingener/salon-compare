@@ -1,13 +1,13 @@
-# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3c)
+# OpenSpec — инвентаризация (Stage 1 + Stage 3a–3d)
 
-> Снимок на 2026-09-09. Ветка Stage 3c: `chore/openspec-stage-3c-archive-group-3`.
+> Снимок на 2026-09-09. Ветка Stage 3d: `chore/openspec-stage-3d-archive-group-4`.
 
 ## Сводка
 
 | Метрика | Значение |
 |--------|----------|
-| Активных change в `openspec/changes/` | **10** |
-| Уже в `openspec/changes/archive/` | **17** |
+| Активных change в `openspec/changes/` | **6** |
+| Уже в `openspec/changes/archive/` | **21** |
 | Live-спеки в `openspec/specs/` | **8** (`hook-intake`, `open-data-collect`, `project-bootstrap`, `saved-runs`, `delivery-readme`, `scoring-formula`, `report-corrections`, `html-freshness`) |
 
 ### Рекомендуемый порядок архивации (Stage 3)
@@ -50,6 +50,10 @@
 | `2026-09-09-add-scoring-formula` | #14 |
 | `2026-09-09-add-report-corrections` | #15 |
 | `2026-09-09-add-html-freshness-and-usage` | #17 |
+| `2026-09-09-add-cross-source-enrichment` | #19 |
+| `2026-09-09-add-disambiguation-address` | #20 |
+| `2026-09-09-add-disambiguation-floor-mall` | #21 |
+| `2026-09-09-add-places-hours-district-metro` | #22 |
 
 ---
 
@@ -70,7 +74,10 @@
 | **3. Отчёт и формула v1** | `add-scoring-formula` | ✅ archived | 2026-09-09 |
 | | `add-report-corrections` | ✅ archived | 2026-09-09 |
 | | `add-html-freshness-and-usage` | ✅ archived | 2026-09-09 |
-| 4. Обогащение карт | 4 change | pending | — |
+| **4. Обогащение карт** | `add-cross-source-enrichment` | ✅ archived | 2026-09-09 |
+| | `add-disambiguation-address` | ✅ archived | 2026-09-09 |
+| | `add-disambiguation-floor-mall` | ✅ archived | 2026-09-09 |
+| | `add-places-hours-district-metro` | ✅ archived | 2026-09-09 |
 | 5. Пост-Яндекс и каскад | 5 change | pending | — |
 | 6. Формула v2 | `revise-index-available-data` | pending | — |
 
@@ -89,19 +96,25 @@
 - `add-report-corrections` — созданы live `report-corrections`; `saved-runs` переименован requirement «Открытие сохранённого разбора».
 - `add-html-freshness-and-usage` — создан live `html-freshness`; свежесть/часы в `open-data-collect`; usage-токены в UI.
 
+Примечания Stage 3d:
+- `add-cross-source-enrichment` — delta `project-bootstrap` «README про сквозные источники» добавлен в live как ADDED (MODIFIED header не найден); delta `hook-intake` и `open-data-collect` — сквозной каскад сайт/ОГРН с карт, ОГРН→бренд РБК→поиск карт.
+- `add-disambiguation-address` — адрес в подписи radio при нескольких карточках с одним названием.
+- `add-disambiguation-floor-mall` — этаж, комментарий и ТЦ в адресе кандидата из JSON 2ГИС.
+- `add-places-hours-district-metro` — часы, район, метро из Places JSON 2ГИС.
+
 ---
 
 ## Аудит активных change
 
 | change | кратко что | в коде? | связанный PR | tasks все [x]? | рекомендация |
 |--------|------------|---------|--------------|----------------|--------------|
-| `add-cross-source-enrichment` | Сквозной сбор: сайт с карт, ОГРН→бренд РБК→поиск карт, поля `org`/`contact_groups` в 2ГИС | да | #19 | да | Archive группа 4; merge delta в `open-data-collect` / `hook-intake` |
-| `add-disambiguation-address` | Адрес в подписи radio при нескольких карточках с одним названием | да | #20 | да | Archive группа 4 |
-| `add-disambiguation-floor-mall` | Этаж, комментарий и ТЦ в адресе кандидата из JSON 2ГИС | да | #21 | да | Archive группа 4 |
+| ~~`add-cross-source-enrichment`~~ | Сквозной сбор: сайт с карт, ОГРН→бренд РБК→поиск карт, поля `org`/`contact_groups` в 2ГИС | да | #19 | да | **Archived** 2026-09-09 |
+| ~~`add-disambiguation-address`~~ | Адрес в подписи radio при нескольких карточках с одним названием | да | #20 | да | **Archived** 2026-09-09 |
+| ~~`add-disambiguation-floor-mall`~~ | Этаж, комментарий и ТЦ в адресе кандидата из JSON 2ГИС | да | #21 | да | **Archived** 2026-09-09 |
 | ~~`add-hook-fallback-without-maps`~~ | Без ключей карт — fallback одной точки по типу зацепки, демо до таблицы | да | #11 | да | **Archived** 2026-09-09 |
 | ~~`add-html-freshness-and-usage`~~ | HTML: часы, свежесть отзывов, плюс/минус; блок расхода LLM (токены/cost) | частично | #17 | да | **Archived** 2026-09-09 |
 | ~~`add-legal-registries`~~ | ЕГРЮЛ, Федресурс, КАД; неоднозначность юрлица; один GET на реестр | частично | #6 (+ #37 Checko) | да | **Archived** 2026-09-09 (`--skip-specs`) |
-| `add-places-hours-district-metro` | Часы, район, метро из Places JSON 2ГИС | да | #22 | да | Archive группа 4 |
+| ~~`add-places-hours-district-metro`~~ | Часы, район, метро из Places JSON 2ГИС | да | #22 | да | **Archived** 2026-09-09 |
 | ~~`add-rbc-companies-ogrn`~~ | Fallback ЕГРЮЛ через поиск РБК по ОГРН | да | #18 | да | **Archived** 2026-09-09 |
 | ~~`add-report-corrections`~~ | Карточки салона, JSON-вердикт LLM, правки полей, «недостоверный» | да | #15 (+ #38 LLM) | да | **Archived** 2026-09-09 |
 | ~~`add-rusprofile-ddg-fallback`~~ | DDG→rusprofile для полей ЕГРЮЛ, полка «слабо», pacer | да | #8 | да | **Archived** 2026-09-09 |
@@ -133,8 +146,8 @@
 
 | файл | покрывает (кратко) | заметки |
 |------|-------------------|---------|
-| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation, fallback без карт | группа 2 merged; disambiguation адрес/этаж — в changes группы 4 |
-| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, часы/свежесть | scoring v2 (50/25/25) — в change `revise-index` |
+| `openspec/specs/hook-intake/spec.md` | три зацепки, disambiguation (адрес, этаж/ТЦ), fallback без карт, ОГРН→бренд РБК | группы 2–4 merged |
+| `openspec/specs/open-data-collect/spec.md` | каскад 2ГИС→HTML, юрблок, `region_id=32`, часы/район/метро/свежесть, сквозной сайт с карт | scoring v2 (50/25/25) — в change `revise-index` |
 | `openspec/specs/scoring-formula/spec.md` | индекс **v1** 40/25/20/15, частичный score, недостоверный | v2 в `revise-index` (Stage 3f) |
 | `openspec/specs/report-corrections/spec.md` | карточки, LLM-вердикт, правки, недостоверный | из группы 3 |
 | `openspec/specs/html-freshness/spec.md` | HTML часы/свежесть/плюс-минус, usage токенов | из группы 3 |
@@ -148,7 +161,7 @@
 
 1. Retroactive change для Yandex map UI.
 2. `tasks.md` для `revise-index-available-data` (или waiver в archive).
-3. **Stage 3d:** архивация группы 4 (обогащение карт).
+3. **Stage 3e:** архивация группы 5 (пост-Яндекс и каскад сайт↔юрлицо).
 
 ---
 
