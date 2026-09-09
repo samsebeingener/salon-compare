@@ -1,7 +1,7 @@
-# OpenSpec — целевая карта capabilities (Stage 2)
+# OpenSpec — целевая карта capabilities (Stage 2 + Stage 3a)
 
-> Планирование. Ветка: `chore/openspec-stage-2-target-specs`.  
-> Архивация change и полные тела `spec.md` — **Stage 3+**. Здесь только карта и правила.
+> Карта capabilities и правила merge.  
+> **Stage 3a (2026-09-09):** группа 1 «юридический контур» заархивирована (5 change → `archive/2026-09-09-*`). Активных change: **18**. См. [инвентаризацию](../docs/openspec-inventory.md#stage-3--прогресс-архивации).
 
 ## Что такое `openspec/specs/`
 
@@ -13,7 +13,7 @@
 | `openspec/changes/<имя>/` | Активная работа: proposal, design, tasks, дельты к specs |
 | `openspec/changes/archive/` | Завершённые change (история решений) |
 
-Правило: код в `main` не должен расходиться со `openspec/specs/` дольше одного PR. Пока 23 активных change не заархивированы, часть «правды» всё ещё лежит в `openspec/changes/` — см. [инвентаризацию](../docs/openspec-inventory.md).
+Правило: код в `main` не должен расходиться со `openspec/specs/` дольше одного PR. Пока 18 активных change не заархивированы, часть «правды» всё ещё лежит в `openspec/changes/` — см. [инвентаризацию](../docs/openspec-inventory.md).
 
 Цикл работы с OpenSpec описан в [CONTRIBUTING.md — раздел OpenSpec](../CONTRIBUTING.md#openspec).
 
@@ -90,9 +90,10 @@ Change `drop-yandex-maps-source` снимает Яндекс Places и поля 
 
 ---
 
-## Что дальше (не Stage 2)
+## Что дальше
 
 1. Retroactive change `add-yandex-map-viz` для PR #40
 2. `tasks.md` или waiver для `revise-index-available-data`
-3. **Stage 3:** архивация групп 1→6 с merge delta → live specs
-4. **Stage 4–5:** полные тела `spec.md` для `scoring-formula`, `streamlit-ui`, `llm-report`
+3. **Stage 3b:** архивация группы 2 (инфраструктура и UX) — 5 change
+4. **Stage 3c–3f:** группы 3→6
+5. **Stage 4–5:** полные тела `spec.md` для `scoring-formula`, `streamlit-ui`, `llm-report`
