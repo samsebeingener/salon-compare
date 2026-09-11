@@ -36,11 +36,15 @@ def chat_completions_url(base_url: str, model: str) -> str:
 
 
 def _max_tokens() -> int:
-    raw = os.environ.get("LLM_MAX_TOKENS", "").strip()
-    if raw.isdigit():
-        value = int(raw)
-        if value > 0:
-            return value
+    raw = os.environ.get("LLM_MAX_TOKENS", "").strip().replace("_", "").replace(" ", "")
+    if raw.startswith("+"):
+        raw = raw[1:]
+    try:
+        value = int(raw, 10)
+    except ValueError:
+        return _DEFAULT_MAX_TOKENS
+    if value > 0:
+        return value
     return _DEFAULT_MAX_TOKENS
 
 

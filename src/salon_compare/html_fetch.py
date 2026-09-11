@@ -81,20 +81,18 @@ def ddg_html_post(url: str) -> tuple[str, dict[str, str]] | None:
     return f"{parsed.scheme}://{parsed.netloc}{path}", {"q": query, "b": ""}
 
 
+def _host_skips_env_proxy(host: str) -> bool:
+    if "duckduckgo.com" in host:
+        return True
+    for base in ("2gis.ru", "2gis.com", "companies.rbc.ru", "checko.ru"):
+        if host == base or host.endswith(f".{base}"):
+            return True
+    return False
+
+
 def html_client_kwargs(url: str) -> HttpxClientKwargs:
     host = urlparse(url).netloc.lower()
-    if (
-        host == "2gis.ru"
-        or host.endswith(".2gis.ru")
-        or host == "2gis.com"
-        or host.endswith(".2gis.com")
-    ):
-        return direct_httpx_kwargs()
-    if "duckduckgo.com" in host:
-        return direct_httpx_kwargs()
-    if host == "companies.rbc.ru" or host.endswith(".companies.rbc.ru"):
-        return direct_httpx_kwargs()
-    if host == "checko.ru" or host.endswith(".checko.ru"):
+    if _host_skips_env_proxy(host):
         return direct_httpx_kwargs()
     return httpx_client_kwargs()
 

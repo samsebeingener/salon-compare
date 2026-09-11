@@ -52,5 +52,7 @@ def test_html_fetch_rejects_large_body_without_content_length(
 def test_html_client_skips_proxy_for_twogis_api_host() -> None:
     catalog = html_client_kwargs("https://catalog.api.2gis.com/3.0/items")
     firm = html_client_kwargs("https://2gis.ru/firm/1")
+    ddg = html_client_kwargs("https://html.duckduckgo.com/html/")
     assert catalog["trust_env"] is False
     assert firm["trust_env"] is False
+    assert ddg["trust_env"] is False
