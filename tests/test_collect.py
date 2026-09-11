@@ -180,8 +180,43 @@ def test_one_empty_twogis_does_not_cancel_others() -> None:
     rows = collect_three(venues, hooks, deps)
     assert len(rows) == 3
     assert rows[0].twogis_rating.trust is Trust.MISSING
+    assert rows[0].collect_ok is True
     assert rows[1].twogis_rating.trust is Trust.FOUND
+    assert rows[1].collect_ok is True
     assert rows[2].twogis_rating.trust is Trust.FOUND
+    assert rows[2].collect_ok is True
+
+
+class BoomMapApi:
+    def fetch_card(self, venue: VenueCandidate) -> MapCard | None:
+        if venue.venue_id == "2":
+            raise RuntimeError("boom")
+        return _full_card("https://2gis.example/ok")
+
+
+def test_collect_three_exception_is_not_missing() -> None:
+    deps = CollectDeps(
+        twogis=BoomMapApi(),
+        html=FakeHtml({}),
+        parser=FakeParser(HtmlExtract()),
+    )
+    venues = (
+        VenueCandidate("1", "A", "https://a.example"),
+        VenueCandidate("2", "B", "https://b.example"),
+        VenueCandidate("3", "C", "https://c.example"),
+    )
+    hooks = (
+        classify_hook("aaa"),
+        classify_hook("bbb"),
+        classify_hook("ccc"),
+    )
+    rows = collect_three(venues, hooks, deps)
+    assert len(rows) == 3
+    assert rows[0].collect_ok is True
+    assert rows[1].collect_ok is False
+    assert rows[1].collect_error is not None
+    assert rows[1].collect_error.startswith("RuntimeError: boom")
+    assert rows[2].collect_ok is True
 
 
 def test_neighbors_from_api_skip_html() -> None:
@@ -627,3 +662,6 @@ def test_app_shows_fields_table_without_score_index() -> None:
     assert "Индекс 50/25/25" in text
     assert "Яндекс рейтинг" not in text
     assert '"Рейтинг соседей"' not in text
+    assert "not row.collect_ok" in text
+    assert "Сбор" in text
+    assert "st.error" in text

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from enum import StrEnum
 from typing import Protocol
 from urllib.parse import quote_plus, urlparse
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from salon_compare.checko import (
@@ -58,6 +60,7 @@ class Trust(StrEnum):
 
 
 _MAX_RUSPROFILE_CARDS = 5
+_LOG = logging.getLogger(__name__)
 
 
 class RequestPacer(Protocol):
@@ -156,6 +159,8 @@ class PlaceRecord(BaseModel):
     efrsb: SourcedField = Field(default_factory=SourcedField)
     map_lat: float | None = None
     map_lon: float | None = None
+    collect_ok: bool = True
+    collect_error: str | None = None
 
 
 def coerce_place_record(row: object) -> PlaceRecord | None:
@@ -470,7 +475,8 @@ def _field[T: float | int | str](
 def _safe_card(api: MapApi, venue: VenueCandidate) -> MapCard:
     try:
         card = api.fetch_card(venue)
-    except Exception:
+    except (httpx.HTTPError, OSError, ValueError):
+        _LOG.exception("map card fetch failed for venue_id=%s", venue.venue_id)
         card = None
     if card is None:
         return MapCard(None, None, None, "", "", None, None)
@@ -923,6 +929,18 @@ def collect_three(
                     legal_choice=choices.get(venue.venue_id),
                 )
             )
-        except Exception:
-            rows.append(_empty_place(venue))
+        except Exception as exc:
+            _LOG.exception(
+                "collect_place failed for venue_id=%s title=%s",
+                venue.venue_id,
+                venue.title,
+            )
+            rows.append(
+                _empty_place(venue).model_copy(
+                    update={
+                        "collect_ok": False,
+                        "collect_error": type(exc).__name__ + ": " + str(exc)[:200],
+                    }
+                )
+            )
     return rows
