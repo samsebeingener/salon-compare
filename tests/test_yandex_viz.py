@@ -180,3 +180,30 @@ def test_resolve_marker_coords_uses_geocoder_key_for_address(
     assert stats.placed == 1
     assert calls == ["geocoder-only-key"]
     assert resolved[0].lat == 55.75
+
+
+def test_map_html_does_not_break_script_on_title() -> None:
+    html = build_yandex_map_html(
+        [
+            MapPoint(
+                "</script><img src=x onerror=alert(1)>",
+                None,
+                55.74,
+                37.65,
+            )
+        ],
+        "test-key-123",
+    )
+    assert "<img" not in html
+    assert "</script><img" not in html
+    assert "\\u003c" in html or "&lt;" in html or "\\u0026lt;" in html
+
+
+def test_balloon_escapes_html_in_title_and_address() -> None:
+    payload = "<img src=x onerror=alert(1)>"
+    html = build_yandex_map_html(
+        [MapPoint(payload, payload, 55.74, 37.65)],
+        "test-key-123",
+    )
+    assert "<img src=x" not in html
+    assert "&lt;img" in html or "\\u003cimg" in html or "\\u0026lt;img" in html
