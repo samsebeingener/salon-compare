@@ -32,6 +32,24 @@ _HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
 }
+_MAX_HTML_BYTES = 2_000_000
+
+
+def _response_too_large(response: httpx.Response) -> bool:
+    headers = getattr(response, "headers", None)
+    raw_length: str | None = None
+    if headers is not None:
+        raw_length = headers.get("Content-Length") or headers.get("content-length")
+    if raw_length:
+        try:
+            if int(raw_length) > _MAX_HTML_BYTES:
+                return True
+        except ValueError:
+            pass
+    content = getattr(response, "content", None)
+    if content is not None:
+        return len(content) > _MAX_HTML_BYTES
+    return False
 
 
 def classify_fetch(status_code: int, text: str, final_url: str = "") -> str:
@@ -97,6 +115,9 @@ class HttpxHtmlFetcher:
                 )
         except httpx.HTTPError:
             return HtmlFetchResult(status="empty", body="", url=url)
-        status = classify_fetch(response.status_code, response.text, str(response.url))
+        final_url = str(response.url)
+        if _response_too_large(response):
+            return HtmlFetchResult(status="empty", body="", url=final_url)
+        status = classify_fetch(response.status_code, response.text, final_url)
         body = response.text if status == "ok" else response.text[:2000]
-        return HtmlFetchResult(status=status, body=body, url=str(response.url))
+        return HtmlFetchResult(status=status, body=body, url=final_url)

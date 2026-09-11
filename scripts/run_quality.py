@@ -10,7 +10,12 @@ def main() -> int:
         ["ruff", "check", "."],
         ["ruff", "format", "--check", "."],
         ["mypy", "src", "tests"],
-        ["pytest", "-q"],
+        [
+            "pytest",
+            "-q",
+            "--cov=src/salon_compare",
+            "--cov-report=term-missing",
+        ],
     )
     for cmd in steps:
         print("+", *cmd)

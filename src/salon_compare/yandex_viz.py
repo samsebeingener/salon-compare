@@ -15,6 +15,7 @@ from salon_compare.collect import (
     as_sourced_field,
     coerce_place_record,
 )
+from salon_compare.proxy import httpx_client_kwargs
 
 _MOSCOW_CENTER = (55.751244, 37.618423)
 _DEFAULT_ZOOM = 13
@@ -139,7 +140,7 @@ def geocode_yandex_http(query: str, api_key: str) -> tuple[float, float] | None:
                 "results": 1,
             },
             timeout=10.0,
-            trust_env=False,
+            **httpx_client_kwargs(),
         )
     except (httpx.HTTPError, OSError):
         return None
