@@ -143,3 +143,57 @@ def test_twogis_card_missing_hours_district_metro() -> None:
     assert card.hours is None
     assert card.district is None
     assert card.metro is None
+    assert card.rubrics is None
+    assert card.place_type is None
+    assert card.price_level is None
+
+
+def _scale_item() -> dict[str, object]:
+    return {
+        "id": "firm-1",
+        "address_name": "Москва, Земляной Вал, 33",
+        "address_comment": "1 этаж",
+        "address": {"building_name": "ТЦ Атриум"},
+        "rubrics": [
+            {"name": "Салон красоты"},
+            {"name": "Ногтевая студия"},
+            {"name": "Маникюр"},
+            {"name": "Педикюр"},
+        ],
+    }
+
+
+def test_twogis_card_reads_rubrics_mall_and_floor() -> None:
+    card = card_from_twogis(_scale_item())
+    assert card.rubrics == "Салон красоты, Ногтевая студия, Маникюр"
+    assert card.place_type == "ТЦ"
+    assert card.price_level is None
+
+
+def test_twogis_place_type_floor_without_mall() -> None:
+    card = card_from_twogis(
+        {
+            "id": "firm-1",
+            "address_name": "Москва, Бауманская, 7",
+            "address_comment": "1 этаж",
+            "address": {"building_name": "БЦ Восток"},
+        }
+    )
+    assert card.place_type == "1 этаж"
+
+
+def test_twogis_place_type_street_without_building() -> None:
+    card = card_from_twogis(
+        {
+            "id": "firm-1",
+            "address_name": "Москва, Бауманская",
+        }
+    )
+    assert card.place_type == "улица"
+
+
+def test_twogis_price_level_from_json_only() -> None:
+    card = card_from_twogis({"id": "firm-1", "price_level": 2})
+    assert card.price_level == "2"
+    empty = card_from_twogis({"id": "firm-1", "context": {"distance": 120}})
+    assert empty.price_level is None

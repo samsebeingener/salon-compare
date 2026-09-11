@@ -18,7 +18,13 @@ HUMAN_SOURCE = "правка человека"
 
 FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("twogis_rating", "2ГИС рейтинг"),
+    ("twogis_last_review", "2ГИС дата последнего отзыва"),
+    ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
+    ("twogis_plus_minus", "2ГИС плюс/минус"),
     ("hours", "Часы"),
+    ("place_type", "Тип места"),
+    ("twogis_rubrics", "Рубрики 2ГИС"),
+    ("twogis_price_level", "Уровень цен"),
     ("district", "Район"),
     ("metro", "Метро"),
     ("address", "Адрес"),
@@ -41,7 +47,13 @@ EDITABLE_FIELDS: tuple[str, ...] = tuple(name for name, _ in FIELD_LABELS)
 EVIDENCE_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("twogis_rating", "2ГИС рейтинг"),
     ("twogis_review_count", "2ГИС число отзывов"),
+    ("twogis_last_review", "2ГИС дата последнего отзыва"),
+    ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
+    ("twogis_plus_minus", "2ГИС плюс/минус"),
     ("hours", "Часы"),
+    ("place_type", "Тип места"),
+    ("twogis_rubrics", "Рубрики 2ГИС"),
+    ("twogis_price_level", "Уровень цен"),
     ("district", "Район"),
     ("metro", "Метро"),
     ("address", "Адрес"),
@@ -57,9 +69,6 @@ EVIDENCE_FIELD_LABELS: tuple[tuple[str, str], ...] = (
     ("fedresurs", "Федресурс"),
     ("kad", "КАД арбитраж"),
     ("efrsb", "ЕФРСБ банкротства"),
-    ("twogis_last_review", "2ГИС дата последнего отзыва"),
-    ("twogis_reviews_90d", "2ГИС отзывы за 90 дней"),
-    ("twogis_plus_minus", "2ГИС плюс/минус"),
 )
 
 _BLOCK_LABELS = {
