@@ -25,6 +25,11 @@ def httpx_client_kwargs() -> HttpxClientKwargs:
     return {"trust_env": True}
 
 
+def direct_httpx_kwargs() -> HttpxClientKwargs:
+    """Без HTTP_PROXY/HTTPS_PROXY. Catalog API и HTML 2ГИС из РФ открываются сами."""
+    return {"trust_env": False}
+
+
 def proxy_urls_from_env() -> tuple[str, ...]:
     """Уникальные URL как в .env: схему https:// у прокси не переписываем."""
     found: list[str] = []

@@ -8,7 +8,11 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 
 from salon_compare.collect import HtmlFetchResult
-from salon_compare.proxy import HttpxClientKwargs, httpx_client_kwargs
+from salon_compare.proxy import (
+    HttpxClientKwargs,
+    direct_httpx_kwargs,
+    httpx_client_kwargs,
+)
 
 _BLOCKED_CODES = {401, 403, 429}
 _BLOCKED_MARKERS = (
@@ -79,14 +83,19 @@ def ddg_html_post(url: str) -> tuple[str, dict[str, str]] | None:
 
 def html_client_kwargs(url: str) -> HttpxClientKwargs:
     host = urlparse(url).netloc.lower()
-    if host == "2gis.ru" or host.endswith(".2gis.ru"):
-        return {"trust_env": False}
+    if (
+        host == "2gis.ru"
+        or host.endswith(".2gis.ru")
+        or host == "2gis.com"
+        or host.endswith(".2gis.com")
+    ):
+        return direct_httpx_kwargs()
     if "duckduckgo.com" in host:
-        return {"trust_env": False}
+        return direct_httpx_kwargs()
     if host == "companies.rbc.ru" or host.endswith(".companies.rbc.ru"):
-        return {"trust_env": False}
+        return direct_httpx_kwargs()
     if host == "checko.ru" or host.endswith(".checko.ru"):
-        return {"trust_env": False}
+        return direct_httpx_kwargs()
     return httpx_client_kwargs()
 
 

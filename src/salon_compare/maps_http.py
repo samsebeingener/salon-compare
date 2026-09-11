@@ -14,7 +14,7 @@ from salon_compare.maps_parse import (
     item_by_id,
     neighbors_from_twogis_items,
 )
-from salon_compare.proxy import httpx_client_kwargs
+from salon_compare.proxy import direct_httpx_kwargs
 
 TWOGIS_FIELDS = (
     "items.reviews,items.address_name,items.point,"
@@ -40,7 +40,7 @@ def _get_json(url: str, params: dict[str, str]) -> object | None:
             url,
             params=params,
             timeout=15.0,
-            **httpx_client_kwargs(),
+            **direct_httpx_kwargs(),
         )
         response.raise_for_status()
         data: object = response.json()

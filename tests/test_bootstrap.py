@@ -27,6 +27,7 @@ def test_readme_documents_rf_llm_proxy() -> None:
     assert "HTTP_PROXY" in text
     assert "HTTPS_PROXY" in text
     assert "РФ" in text or "Росси" in text
+    assert "catalog.api.2gis.com" in text
     assert "USER:PASSWORD@HOST:PORT" in text
     assert "127.0.0.1:8080" not in text
 
@@ -46,6 +47,12 @@ def test_httpx_client_trusts_env_proxy() -> None:
 
     kwargs = httpx_client_kwargs()
     assert kwargs["trust_env"] is True
+
+
+def test_direct_httpx_skips_env_proxy() -> None:
+    from salon_compare.proxy import direct_httpx_kwargs
+
+    assert direct_httpx_kwargs()["trust_env"] is False
 
 
 def test_quality_script_exists() -> None:
