@@ -83,3 +83,12 @@ def test_start_bat_calls_python_script() -> None:
     bat = (root / "START.bat").read_text(encoding="utf-8")
     assert "scripts\\start_local.py" in bat
     assert (root / "scripts" / "start_local.py").is_file()
+
+
+def test_start_sh_calls_same_python_script() -> None:
+    root = Path(__file__).resolve().parents[1]
+    sh = (root / "start.sh").read_text(encoding="utf-8")
+    assert "scripts/start_local.py" in sh
+    assert "python3" in sh
+    command = (root / "START.command").read_text(encoding="utf-8")
+    assert "start.sh" in command

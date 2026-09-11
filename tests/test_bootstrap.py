@@ -19,6 +19,9 @@ def test_env_example_lists_required_keys() -> None:
 def test_readme_documents_start_bat() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "START.bat" in text
+    assert "start.sh" in text
+    assert "START.command" in text
+    assert "iPhone" in text or "iPad" in text
     assert "127.0.0.1:8501" in text
 
 

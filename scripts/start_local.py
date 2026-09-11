@@ -91,12 +91,12 @@ def wait_health(url: str, attempts: int = 30, delay: float = 2.0) -> bool:
 def run_compose(root: Path) -> int:
     docker = find_docker_executable()
     if docker is None:
-        print("Команда docker не найдена в PATH и в папке Docker Desktop.")
+        print("Команда docker не найдена в PATH.")
         return 127
     try:
         result = subprocess.run(compose_up_cmd(docker), cwd=root, check=False)
     except OSError:
-        print("Не удалось запустить docker.exe. Открой Docker Desktop и повтори.")
+        print("Не удалось запустить docker. Установи Docker и повтори.")
         return 127
     return result.returncode
 
@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Пробую без Docker…")
         local = run_local_streamlit(ROOT)
         if local != 0:
-            print("Нужен Docker Desktop (в PATH) или uv в проекте.")
+            print("Нужен Docker в PATH или uv в проекте.")
             return local
 
     print("Жду http://127.0.0.1:8501 …")
