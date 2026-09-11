@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust, coerce_place_record
@@ -12,6 +13,7 @@ from salon_compare.store import (
     format_run_date,
     list_runs,
     load_run,
+    load_run_bundle,
     load_run_usage,
     load_run_verdict,
     rows_from_cache,
@@ -269,13 +271,48 @@ def test_app_opens_saved_without_new_search() -> None:
     assert "сохранённый" in lowered or "сохраненный" in lowered
     assert "нового поиска нет" in lowered
     assert "save_run" in text
-    assert "load_run_verdict" in text
+    assert "load_run_bundle" in text
     assert "save_run_verdict" in text
     assert "SavedRun" in text
     assert "update_run" in text
     assert "collected_rows" in text or "rows_from_cache" in text
     assert "покупай" not in lowered
     assert "_labels" in text
+
+
+def test_load_run_bundle_rows_usage_verdict(tmp_path: Path) -> None:
+    path = tmp_path / "salon-compare.sqlite"
+    usage = LlmUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15, cost=0.02)
+    verdict = ModelVerdict(
+        interesting="Вишня",
+        why_better="рейтинг выше",
+        breaks_if="аренда",
+        compared_index=12.0,
+    )
+    run_id = save_run([_row()], path, usage=usage, verdict=verdict)
+    bundle = load_run_bundle(run_id, path)
+    assert bundle is not None
+    assert len(bundle.rows) == 1
+    assert bundle.rows[0].title == "Ногтевой Сервис"
+    assert bundle.usage is not None
+    assert bundle.usage.total_tokens == 15
+    assert bundle.verdict is not None
+    assert bundle.verdict.interesting == "Вишня"
+
+
+def test_load_run_bundle_old_json_without_usage(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite"
+    run_id = save_run([_row()], path)
+    packed = json.dumps([_row().model_dump(mode="json")], ensure_ascii=False)
+    with sqlite3.connect(path) as conn:
+        conn.execute("UPDATE runs SET payload = ? WHERE id = ?", (packed, run_id))
+        conn.commit()
+    bundle = load_run_bundle(run_id, path)
+    assert bundle is not None
+    assert bundle.rows[0].title == "Ногтевой Сервис"
+    assert bundle.usage is None
+    assert bundle.verdict is None
+    assert load_run_usage(run_id, path) is None
 
 
 def test_readme_mentions_sqlite() -> None:
