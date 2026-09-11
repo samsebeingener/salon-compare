@@ -5,7 +5,7 @@ from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, SourcedField, Trust, coerce_place_record
 from salon_compare.legal import LegalOrg
-from salon_compare.llm import LlmUsage
+from salon_compare.llm import LlmUsage, merge_usage
 from salon_compare.report import ModelVerdict
 from salon_compare.store import (
     collect_cache_key,
@@ -127,7 +127,35 @@ def test_save_and_load_keeps_verdict_and_usage(tmp_path: Path) -> None:
     assert still.why_better == "рейтинг выше"
     kept = load_run_usage(run_id, path)
     assert kept is not None
-    assert kept.total_tokens == 3
+    assert kept.total_tokens == 18
+    assert kept.prompt_tokens == 11
+    assert kept.completion_tokens == 7
+    assert kept.cost == 0.02
+
+
+def test_merge_usage_sums_1200_and_1050() -> None:
+    left = LlmUsage(
+        prompt_tokens=800,
+        completion_tokens=400,
+        total_tokens=1200,
+        cost=0.01,
+    )
+    right = LlmUsage(
+        prompt_tokens=700,
+        completion_tokens=350,
+        total_tokens=1050,
+        cost=0.02,
+    )
+    merged = merge_usage(left, right)
+    assert merged.prompt_tokens == 1500
+    assert merged.completion_tokens == 750
+    assert merged.total_tokens == 2250
+    assert merged.cost == 0.03
+    assert merge_usage(None, left).total_tokens == 1200
+    assert merge_usage(right, None).total_tokens == 1050
+    empty = merge_usage(None, None)
+    assert empty.total_tokens is None
+    assert empty.cost is None
 
 
 def test_load_does_not_need_html(tmp_path: Path) -> None:

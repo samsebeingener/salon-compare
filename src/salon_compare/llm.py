@@ -96,6 +96,37 @@ class LlmUsage(BaseModel):
     cost: float | None = None
 
 
+def _merge_optional_int(left: int | None, right: int | None) -> int | None:
+    if left is None and right is None:
+        return None
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left + right
+
+
+def _merge_optional_float(left: float | None, right: float | None) -> float | None:
+    if left is None and right is None:
+        return None
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left + right
+
+
+def merge_usage(left: LlmUsage | None, right: LlmUsage | None) -> LlmUsage:
+    a = left if left is not None else LlmUsage()
+    b = right if right is not None else LlmUsage()
+    return LlmUsage(
+        prompt_tokens=_merge_optional_int(a.prompt_tokens, b.prompt_tokens),
+        completion_tokens=_merge_optional_int(a.completion_tokens, b.completion_tokens),
+        total_tokens=_merge_optional_int(a.total_tokens, b.total_tokens),
+        cost=_merge_optional_float(a.cost, b.cost),
+    )
+
+
 class LlmClient(Protocol):
     def complete(self, prompt: str, *, system: str | None = None) -> str: ...
 

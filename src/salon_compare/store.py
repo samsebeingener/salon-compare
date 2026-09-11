@@ -10,7 +10,7 @@ from pathlib import Path
 
 from salon_compare.collect import PlaceRecord, coerce_place_record
 from salon_compare.legal import LegalOrg
-from salon_compare.llm import LlmUsage
+from salon_compare.llm import LlmUsage, merge_usage
 from salon_compare.report import ModelVerdict
 
 
@@ -244,12 +244,19 @@ def save_run_usage(run_id: int, usage: LlmUsage, path: Path | None = None) -> No
         if found is None:
             return
         try:
-            rows, _old, verdict = _payload_parts(str(found[0]))
+            rows, old_usage_raw, verdict = _payload_parts(str(found[0]))
         except (json.JSONDecodeError, ValueError, TypeError):
             return
+        old_usage: LlmUsage | None = None
+        if old_usage_raw is not None:
+            try:
+                old_usage = LlmUsage.model_validate(old_usage_raw)
+            except (ValueError, TypeError):
+                old_usage = None
+        merged = merge_usage(old_usage, usage)
         conn.execute(
             "UPDATE runs SET payload = ? WHERE id = ?",
-            (_encode_payload(rows, usage.model_dump(), verdict), run_id),
+            (_encode_payload(rows, merged.model_dump(), verdict), run_id),
         )
         conn.commit()
 
