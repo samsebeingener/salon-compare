@@ -35,6 +35,7 @@ from salon_compare.llm import (
     make_llm,
     merge_usage,
 )
+from salon_compare.llm_extract import extract_context, extract_missing
 from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
@@ -640,7 +641,30 @@ elif outcome is not None:
 
         rows, wrote = rows_from_cache(cache, key, _collect)
         if wrote:
+            llm = make_llm()
+            extract_usage = LlmUsage()
+            if not isinstance(llm, NullLlm):
+                filled: list[PlaceRecord] = []
+                for row in rows:
+                    updated, usage = extract_missing(row, llm, extract_context(row))
+                    filled.append(updated)
+                    extract_usage = merge_usage(extract_usage, usage)
+                rows = filled
+                cache[key] = rows
             st.session_state["run_id"] = save_run(rows)
+            has_extract = (
+                extract_usage.prompt_tokens is not None
+                or extract_usage.completion_tokens is not None
+                or extract_usage.total_tokens is not None
+                or extract_usage.cost is not None
+            )
+            if has_extract:
+                previous = st.session_state.get("llm_usage")
+                prev_usage = previous if isinstance(previous, LlmUsage) else None
+                st.session_state["llm_usage"] = merge_usage(prev_usage, extract_usage)
+                run_id = st.session_state.get("run_id")
+                if isinstance(run_id, int):
+                    save_run_usage(run_id, extract_usage)
         pending = [row for row in rows if row.legal_candidates]
         if pending:
             st.write("Несколько юрлиц. Выберите запись по ссылке. Сами не выбираем.")
