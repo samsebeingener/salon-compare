@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Protocol
 from urllib.parse import quote_plus, urlparse
@@ -228,6 +228,7 @@ class CollectDeps:
     parser: HtmlParser
     legal: LegalParser = field(default_factory=EmptyLegalParser)
     pacer: RequestPacer = field(default_factory=NullPacer)
+    on_progress: Callable[[str], None] | None = field(default=None, compare=False)
 
 
 class EmptyMapApi:
@@ -510,6 +511,12 @@ def _venue_address(address: SourcedField, fallback: str | None) -> str | None:
     return fallback
 
 
+def _emit_progress(deps: CollectDeps, message: str) -> None:
+    callback = deps.on_progress
+    if callback is not None:
+        callback(message)
+
+
 def collect_place(
     venue: VenueCandidate,
     hook: ClassifiedHook,
@@ -517,6 +524,7 @@ def collect_place(
     legal_choice: str | None = None,
 ) -> PlaceRecord:
     html = _OnceHtml(deps.html)
+    _emit_progress(deps, "2ГИС")
     twogis = _safe_card(deps.twogis, venue)
 
     twogis_rating = _field(
@@ -571,6 +579,7 @@ def collect_place(
     else:
         neighbor_vs = _missing()
 
+    _emit_progress(deps, "сайт")
     site_about, site_ogrn, site_inn, site_ogrn_url = _collect_site(
         hook,
         twogis,
@@ -580,6 +589,7 @@ def collect_place(
         deps.parser,
         deps.pacer,
     )
+    _emit_progress(deps, "ЕГРЮЛ")
     legal = _collect_legal(
         hook,
         twogis,
@@ -919,13 +929,28 @@ def collect_three(
 ) -> list[PlaceRecord]:
     choices = legal_choices or {}
     rows: list[PlaceRecord] = []
-    for venue, hook in zip(venues, hooks, strict=True):
+    total = len(venues)
+    for index, (venue, hook) in enumerate(zip(venues, hooks, strict=True), start=1):
+        slot_deps = deps
+        progress = deps.on_progress
+        if progress is not None:
+            prefix = f"точка {index}/{total}"
+
+            def _slot_progress(
+                message: str,
+                *,
+                _prefix: str = prefix,
+                _hook: Callable[[str], None] = progress,
+            ) -> None:
+                _hook(f"{_prefix} · {message}")
+
+            slot_deps = replace(deps, on_progress=_slot_progress)
         try:
             rows.append(
                 collect_place(
                     venue,
                     hook,
-                    deps,
+                    slot_deps,
                     legal_choice=choices.get(venue.venue_id),
                 )
             )

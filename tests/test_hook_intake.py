@@ -257,6 +257,7 @@ def test_app_accepts_three_hooks_without_report() -> None:
     assert "outcome.status == IntakeStatus.NEED_DISAMBIGUATION" in text
     assert "reload(intake)" not in text
     assert "Уточняем данные ..." in text
-    assert "Собираем поля по трём точкам" in text
+    assert "st.status" in text
+    assert "Собираем поля" in text
     assert "Ждём ответ модели" in text
     assert "сравнительн" not in lowered

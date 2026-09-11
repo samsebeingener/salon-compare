@@ -42,6 +42,7 @@ from salon_compare.report import (
     EDITABLE_FIELDS,
     FIELD_LABELS,
     ModelVerdict,
+    card_payload,
     cell_help,
     complete_verdict,
     footnote_lines,
@@ -150,6 +151,11 @@ def _org_format(orgs: tuple[LegalOrg, ...]) -> Callable[[str], str]:
 
 _CELL_EDIT_CSS = """
 <style>
+.block-container {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
 div[class*="st-key-cell-"] button [data-testid="stIconMaterial"] {
   opacity: 0;
   transition: opacity 0.12s ease;
@@ -160,21 +166,73 @@ div[class*="st-key-cell-"] button:focus-visible [data-testid="stIconMaterial"] {
 }
 .sc-cell-value {
   font-size: 1.12em;
+  font-variant-numeric: tabular-nums;
 }
 .sc-cell-ref {
   font-weight: 400;
   font-size: 1em;
 }
+.sc-row-even {
+  background: #f6f7f9;
+  padding: 0.28rem 0.4rem;
+  margin: -0.28rem -0.4rem;
+}
 </style>
 """
 
+_TABLE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Репутация", ("twogis_rating", "hours", "neighbor_count", "neighbor_vs")),
+    ("Локация", ("district", "metro", "address")),
+    ("", ("site_about",)),
+    (
+        "Юрлицо",
+        (
+            "egrul_registered_at",
+            "egrul_status",
+            "egrul_activity",
+            "fedresurs",
+            "kad",
+            "efrsb",
+        ),
+    ),
+)
 
-def _field_cell_html(body: str, marks: str) -> str:
+_BLOCK_SHORT = {
+    "reputation": "репутация",
+    "stability": "устойчивость",
+    "location": "локация",
+}
+
+
+def _field_cell_html(body: str, marks: str, *, even: bool = False) -> str:
+    stripe = " sc-row-even" if even else ""
     value = f'<span class="sc-cell-value">{escape(body)}</span>'
     if not marks:
-        return f'<div class="sc-cell">{value}</div>'
+        return f'<div class="sc-cell{stripe}">{value}</div>'
     ref = f'<span class="sc-cell-ref">{escape(marks)}</span>'
-    return f'<div class="sc-cell">{value} {ref}</div>'
+    return f'<div class="sc-cell{stripe}">{value} {ref}</div>'
+
+
+def _leader_bits(rows: list[PlaceRecord]) -> list[str]:
+    scores = [score_place(row) for row in rows]
+    best: dict[str, int] = {}
+    for scored in scores:
+        for block in scored.blocks:
+            if block.points is None:
+                continue
+            prev = best.get(block.name)
+            if prev is None or block.points > prev:
+                best[block.name] = block.points
+    marks: list[str] = []
+    for scored in scores:
+        bits: list[str] = []
+        for block in scored.blocks:
+            if block.points is None:
+                continue
+            if best.get(block.name) == block.points:
+                bits.append(f"▲ {_BLOCK_SHORT[block.name]}")
+        marks.append(" ".join(bits))
+    return marks
 
 
 def _show_footnotes(mapping: dict[str, int]) -> None:
@@ -230,40 +288,78 @@ def _show_table(rows: list[PlaceRecord]) -> None:
     st.subheader("Поля точек")
     st.markdown(_CELL_EDIT_CSS, unsafe_allow_html=True)
     notes = footnote_map(rows)
+    labels = dict(FIELD_LABELS)
+    leaders = _leader_bits(rows)
     widths = [2.2] + [1] * len(rows)
     header = st.columns(widths)
     header[0].markdown("**Поле**")
     for index, row in enumerate(rows):
         heading = f"{row.title} · недостоверный" if row.unreliable else row.title
         header[index + 1].markdown(f"**{heading}**")
-    for name, label in FIELD_LABELS:
-        cols = st.columns(widths)
-        cols[0].write(label)
-        for index, row in enumerate(rows):
-            body, marks = table_cell_parts(row, name, notes)
-            value_col, edit_col = cols[index + 1].columns([8, 1], gap="small")
-            value_col.markdown(
-                _field_cell_html(body, marks),
-                unsafe_allow_html=True,
+    stripe = 0
+    for caption, names in _TABLE_SECTIONS:
+        if caption:
+            st.caption(caption)
+        for name in names:
+            even = stripe % 2 == 1
+            stripe += 1
+            cols = st.columns(widths)
+            label_html = (
+                f'<div class="sc-cell{" sc-row-even" if even else ""}">'
+                f"{escape(labels[name])}</div>"
             )
-            if edit_col.button(
-                "\u200b",
-                key=f"cell-{index}-{name}",
-                icon=":material/edit:",
-                help=cell_help(row, name),
-            ):
-                _edit_dialog(index, name)
+            cols[0].markdown(label_html, unsafe_allow_html=True)
+            for index, row in enumerate(rows):
+                body, marks = table_cell_parts(row, name, notes)
+                value_col, edit_col = cols[index + 1].columns([8, 1], gap="small")
+                value_col.markdown(
+                    _field_cell_html(body, marks, even=even),
+                    unsafe_allow_html=True,
+                )
+                if edit_col.button(
+                    "\u200b",
+                    key=f"cell-{index}-{name}",
+                    icon=":material/edit:",
+                    help=cell_help(row, name),
+                ):
+                    _edit_dialog(index, name)
     scored_cols = st.columns(widths)
-    scored_cols[0].write("Индекс 50/25/25")
+    even = stripe % 2 == 1
+    scored_cols[0].markdown(
+        f'<div class="sc-cell{" sc-row-even" if even else ""}">'
+        f"{escape('Индекс 50/25/25')}</div>",
+        unsafe_allow_html=True,
+    )
     for index, row in enumerate(rows):
         scored = score_place(row)
         index_text = "не найдено" if scored.index is None else str(scored.index)
+        if leaders[index]:
+            index_text = f"{index_text} {leaders[index]}"
         scored_cols[index + 1].markdown(
-            _field_cell_html(index_text, ""),
+            _field_cell_html(index_text, "", even=even),
             unsafe_allow_html=True,
         )
     _show_footnotes(notes)
     st.caption("Ориентир по формуле, не инвестиционный совет.")
+
+
+def _show_cards(rows: list[PlaceRecord]) -> None:
+    for row in rows:
+        card = card_payload(row, score_place(row))
+        with st.expander(f"Карточка: {card['title']}"):
+            if card["unreliable"]:
+                st.write("недостоверный")
+            index_value = card["index"]
+            if index_value is None:
+                st.write("Индекс: не найдено")
+            else:
+                st.write(f"Индекс: {index_value}")
+            if card["note"]:
+                st.caption(card["note"])
+            for item in card["fields"]:
+                st.write(f"{item['label']}: {item['text']}")
+            if card["missing"]:
+                st.write("Не найдено: " + ", ".join(card["missing"]))
 
 
 def _working_rows(rows: list[PlaceRecord], key: object) -> list[PlaceRecord]:
@@ -397,7 +493,7 @@ def _show_usage() -> None:
 
 def _show_map(rows: list[PlaceRecord]) -> None:
     points = markers_from_rows(rows)
-    with st.expander("Карта (Яндекс JS API, только просмотр)", expanded=False):
+    with st.expander("Карта (справочно)", expanded=False):
         st.caption(
             "Не влияет на сбор полей и индекс. "
             "Координаты из 2ГИС; иначе геокод адреса на сервере (отдельный ключ)."
@@ -439,7 +535,10 @@ def _show_report(rows: list[PlaceRecord]) -> None:
     for row in rows:
         if not row.collect_ok:
             st.error(f"Сбор «{row.title}» упал: {row.collect_error or 'ошибка'}")
+    st.divider()
+    st.subheader("Сравнение")
     _show_table(rows)
+    _show_cards(rows)
     _show_verdict(rows)
     _show_usage()
 
@@ -520,7 +619,11 @@ elif outcome is not None:
         )
 
         def _collect() -> list[PlaceRecord]:
-            with st.spinner("Собираем поля по трём точкам…"):
+            with st.status("Собираем поля…") as status:
+
+                def _on_progress(msg: str) -> None:
+                    status.update(label=msg)
+
                 return collect_three(
                     venues,
                     classified,
@@ -530,6 +633,7 @@ elif outcome is not None:
                         parser=OpenHtmlParser(),
                         legal=MarkerLegalParser(),
                         pacer=SleepPacer(3.0),
+                        on_progress=_on_progress,
                     ),
                     legal_choices=legal_choices,
                 )
