@@ -298,6 +298,8 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert "cell_help" in text
     assert "sc-cell-value" in text
     assert "font-size: 1.12em" in text
+    assert "#f6f7f9" not in text
+    assert "rgba(128, 128, 128" in text
     assert "font-weight: 700" not in text
     assert "sc-cell-ref" in text
     assert "proxy/vpn" in text.lower()
