@@ -161,7 +161,7 @@ def test_chat_payload_omits_kie_fields_for_openrouter(
 def test_chat_payload_reads_max_tokens_env(monkeypatch: pytest.MonkeyPatch) -> None:
     from salon_compare.llm import chat_payload
 
-    monkeypatch.setenv("LLM_MAX_TOKENS", "800")
+    monkeypatch.setenv("LLM_MAX_TOKENS", "+800")
     body = chat_payload("m", "s", "u", base_url="https://openrouter.ai/api/v1")
     assert body["max_tokens"] == 800
 

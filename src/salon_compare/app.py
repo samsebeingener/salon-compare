@@ -165,20 +165,17 @@ div[class*="st-key-cell-"] button:hover [data-testid="stIconMaterial"],
 div[class*="st-key-cell-"] button:focus-visible [data-testid="stIconMaterial"] {
   opacity: 1;
 }
-.sc-cell {
-  color: inherit;
-  padding: 0.28rem 0.4rem;
-  border-radius: 4px;
+.sc-cell,
+.sc-cell * {
+  color: CanvasText;
 }
 .sc-cell-value {
   font-size: 1.12em;
   font-variant-numeric: tabular-nums;
-  color: inherit;
 }
 .sc-cell-ref {
   font-weight: 400;
   font-size: 1em;
-  color: inherit;
 }
 .sc-row-even {
   background: rgba(128, 128, 128, 0.18);
