@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 from dataclasses import dataclass
@@ -256,6 +257,13 @@ def compute_map_viewport(points: list[MapPoint]) -> MapViewport:
     )
 
 
+def _json_for_html(data: object) -> str:
+    dumped = json.dumps(data, ensure_ascii=False)
+    return (
+        dumped.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    )
+
+
 def _empty_map_html(message: str) -> str:
     safe = json.dumps(message, ensure_ascii=False)
     return f"""<!DOCTYPE html>
@@ -288,33 +296,38 @@ def build_yandex_map_html(points: list[MapPoint], api_key: str) -> str:
         return _empty_map_html(
             "Метки не поставлены: нет координат 2ГИС и геокодер не нашёл адрес."
         )
-    payload = json.dumps(
+    payload = _json_for_html(
         [
             {
-                "title": point.title,
-                "address": point.address,
+                "title": html.escape(point.title, quote=True),
+                "address": (
+                    html.escape(point.address, quote=True)
+                    if point.address is not None
+                    else None
+                ),
                 "lat": point.lat,
                 "lon": point.lon,
             }
             for point in mapped
-        ],
-        ensure_ascii=False,
+        ]
     )
     viewport = compute_map_viewport(mapped)
+    safe_key = html.escape(api_key, quote=True)
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://api-maps.yandex.ru/2.1/?apikey={api_key}&lang=ru_RU"></script>
+  <script src="https://api-maps.yandex.ru/2.1/?apikey={safe_key}&lang=ru_RU"></script>
   <style>
     html, body, #map {{ margin: 0; padding: 0; width: 100%; height: 100%; }}
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <script type="application/json" id="map-points">{payload}</script>
   <script>
-    const POINTS = {payload};
+    const POINTS = JSON.parse(document.getElementById("map-points").textContent);
     const COLORS = ["#E53935", "#43A047", "#1E88E5"];
     const MIN_ZOOM = {_MIN_FIT_ZOOM};
     const SINGLE_ZOOM = {_SINGLE_POINT_ZOOM};
