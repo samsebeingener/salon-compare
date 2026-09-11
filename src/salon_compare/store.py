@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -97,12 +98,12 @@ def _encode_payload(
     )
 
 
-def _load_rows(raw: str) -> list[PlaceRecord]:
-    items, _usage, _verdict = _payload_parts(raw)
+def _coerce_packed_rows(items: Sequence[dict[str, object]]) -> list[PlaceRecord]:
     rows: list[PlaceRecord] = []
     for item in items:
+        data = dict(item)
         parsed: list[LegalOrg] = []
-        cands = item.get("legal_candidates") or []
+        cands = data.get("legal_candidates") or []
         if isinstance(cands, list):
             for cand in cands:
                 if isinstance(cand, dict):
@@ -113,9 +114,41 @@ def _load_rows(raw: str) -> list[PlaceRecord]:
                             str(cand.get("source_url", "")),
                         )
                     )
-        item["legal_candidates"] = parsed
-        rows.append(PlaceRecord.model_validate(item))
+        data["legal_candidates"] = parsed
+        coerced = coerce_place_record(data)
+        if coerced is None:
+            raise ValueError("place row did not coerce")
+        rows.append(coerced)
     return rows
+
+
+def _usage_from_dict(usage: dict[str, object] | None) -> LlmUsage | None:
+    if usage is None:
+        return None
+    try:
+        parsed = LlmUsage.model_validate(usage)
+    except (ValueError, TypeError):
+        return None
+    if parsed.prompt_tokens is None and parsed.completion_tokens is None:
+        if parsed.total_tokens is None and parsed.cost is None:
+            return None
+    return parsed
+
+
+def _verdict_from_dict(verdict: dict[str, object] | None) -> ModelVerdict | None:
+    if verdict is None:
+        return None
+    try:
+        return ModelVerdict.model_validate(verdict)
+    except (ValueError, TypeError):
+        return None
+
+
+@dataclass(frozen=True)
+class RunBundle:
+    rows: list[PlaceRecord]
+    usage: LlmUsage | None
+    verdict: ModelVerdict | None
 
 
 def save_run(
@@ -138,7 +171,7 @@ def save_run(
     return int(run_id)
 
 
-def load_run(run_id: int, path: Path | None = None) -> list[PlaceRecord] | None:
+def load_run_bundle(run_id: int, path: Path | None = None) -> RunBundle | None:
     db = path or default_db_path()
     if not db.is_file():
         return None
@@ -150,59 +183,36 @@ def load_run(run_id: int, path: Path | None = None) -> list[PlaceRecord] | None:
     if found is None:
         return None
     try:
-        return _load_rows(str(found[0]))
+        packed, usage_raw, verdict_raw = _payload_parts(str(found[0]))
+        rows = _coerce_packed_rows(packed)
     except (json.JSONDecodeError, ValueError, TypeError):
         return None
+    return RunBundle(
+        rows=rows,
+        usage=_usage_from_dict(usage_raw),
+        verdict=_verdict_from_dict(verdict_raw),
+    )
+
+
+def load_run(run_id: int, path: Path | None = None) -> list[PlaceRecord] | None:
+    bundle = load_run_bundle(run_id, path)
+    if bundle is None:
+        return None
+    return bundle.rows
 
 
 def load_run_usage(run_id: int, path: Path | None = None) -> LlmUsage | None:
-    db = path or default_db_path()
-    if not db.is_file():
+    bundle = load_run_bundle(run_id, path)
+    if bundle is None:
         return None
-    with _connect(db) as conn:
-        found = conn.execute(
-            "SELECT payload FROM runs WHERE id = ?",
-            (run_id,),
-        ).fetchone()
-    if found is None:
-        return None
-    try:
-        _rows, usage = _row_dicts(str(found[0]))
-    except (json.JSONDecodeError, ValueError, TypeError):
-        return None
-    if usage is None:
-        return None
-    try:
-        parsed = LlmUsage.model_validate(usage)
-    except (ValueError, TypeError):
-        return None
-    if parsed.prompt_tokens is None and parsed.completion_tokens is None:
-        if parsed.total_tokens is None and parsed.cost is None:
-            return None
-    return parsed
+    return bundle.usage
 
 
 def load_run_verdict(run_id: int, path: Path | None = None) -> ModelVerdict | None:
-    db = path or default_db_path()
-    if not db.is_file():
+    bundle = load_run_bundle(run_id, path)
+    if bundle is None:
         return None
-    with _connect(db) as conn:
-        found = conn.execute(
-            "SELECT payload FROM runs WHERE id = ?",
-            (run_id,),
-        ).fetchone()
-    if found is None:
-        return None
-    try:
-        _rows, _usage, verdict = _payload_parts(str(found[0]))
-    except (json.JSONDecodeError, ValueError, TypeError):
-        return None
-    if verdict is None:
-        return None
-    try:
-        return ModelVerdict.model_validate(verdict)
-    except (ValueError, TypeError):
-        return None
+    return bundle.verdict
 
 
 def update_run(

@@ -1,24 +1,68 @@
 """Три зацепки, подтверждение карточек со ссылками, таблица полей."""
 
-import importlib
 from collections.abc import Callable
 from html import escape
 from typing import cast
 
 import streamlit as st
 
-import salon_compare.collect as collect
-import salon_compare.intake as intake
-import salon_compare.llm as llm
-import salon_compare.proxy as proxy
+from salon_compare.collect import (
+    CollectDeps,
+    PlaceRecord,
+    SleepPacer,
+    as_sourced_field,
+    coerce_place_record,
+    collect_three,
+)
 from salon_compare.hooks import HOOK_KIND_LABELS
 from salon_compare.html_fetch import HttpxHtmlFetcher
 from salon_compare.html_parse import OpenHtmlParser
+from salon_compare.intake import (
+    MISSING_VENUE_ID,
+    MISSING_VENUE_LABEL,
+    IntakeStatus,
+    VenueCandidate,
+    apply_slot_choices,
+    candidate_label,
+    resolve_intake,
+)
 from salon_compare.legal import LegalOrg, MarkerLegalParser
+from salon_compare.llm import (
+    LlmUsage,
+    NullLlm,
+    estimated_usd_parts,
+    format_usd_sum_line,
+    make_llm,
+    merge_usage,
+)
 from salon_compare.llm_log import log_path
 from salon_compare.load_env import load_project_env
 from salon_compare.maps_http import map_api_from_env
+from salon_compare.report import (
+    EDITABLE_FIELDS,
+    FIELD_LABELS,
+    ModelVerdict,
+    cell_help,
+    complete_verdict,
+    footnote_lines,
+    footnote_map,
+    mark_unreliable,
+    patch_field,
+    rows_fingerprint,
+    table_cell_parts,
+)
 from salon_compare.resolver import MapsSearchResolver, RbcBrandLookup
+from salon_compare.score import score_place
+from salon_compare.store import (
+    collect_cache_key,
+    list_runs,
+    load_run_bundle,
+    rows_from_cache,
+    save_run,
+    save_run_usage,
+    save_run_verdict,
+    update_run,
+)
 from salon_compare.yandex_viz import (
     build_yandex_map_html,
     has_map_data,
@@ -27,70 +71,6 @@ from salon_compare.yandex_viz import (
     yandex_geocoder_key,
     yandex_maps_js_key,
 )
-
-
-def _needs_collect_reload(mod: object) -> bool:
-    if not hasattr(mod, "as_sourced_field"):
-        return True
-    place = getattr(mod, "PlaceRecord", None)
-    fields = getattr(place, "model_fields", None)
-    return not isinstance(fields, dict) or "map_lat" not in fields
-
-
-collect = importlib.reload(collect) if _needs_collect_reload(collect) else collect
-store = importlib.import_module("salon_compare.store")
-score_mod = importlib.import_module("salon_compare.score")
-report = importlib.import_module("salon_compare.report")
-if not hasattr(store, "coerce_place_record"):
-    store = importlib.reload(store)
-if not hasattr(score_mod, "as_sourced_field"):
-    score_mod = importlib.reload(score_mod)
-if not hasattr(report, "as_sourced_field"):
-    report = importlib.reload(report)
-score = score_mod
-proxy = importlib.reload(proxy)
-llm = importlib.reload(llm)
-CollectDeps = collect.CollectDeps
-PlaceRecord = collect.PlaceRecord
-SleepPacer = collect.SleepPacer
-coerce_place_record = collect.coerce_place_record
-collect_three = collect.collect_three
-as_sourced_field = collect.as_sourced_field
-score_place = score.score_place
-MISSING_VENUE_ID = intake.MISSING_VENUE_ID
-MISSING_VENUE_LABEL = intake.MISSING_VENUE_LABEL
-IntakeStatus = intake.IntakeStatus
-VenueCandidate = intake.VenueCandidate
-apply_slot_choices = intake.apply_slot_choices
-candidate_label = intake.candidate_label
-resolve_intake = intake.resolve_intake
-LlmUsage = llm.LlmUsage
-merge_usage = llm.merge_usage
-NullLlm = llm.NullLlm
-estimated_usd_parts = llm.estimated_usd_parts
-format_usd_sum_line = llm.format_usd_sum_line
-make_llm = llm.make_llm
-EDITABLE_FIELDS = report.EDITABLE_FIELDS
-FIELD_LABELS = report.FIELD_LABELS
-ModelVerdict = report.ModelVerdict
-cell_help = report.cell_help
-complete_verdict = report.complete_verdict
-footnote_lines = report.footnote_lines
-footnote_map = report.footnote_map
-mark_unreliable = report.mark_unreliable
-patch_field = report.patch_field
-rows_fingerprint = report.rows_fingerprint
-table_cell_parts = report.table_cell_parts
-collect_cache_key = store.collect_cache_key
-list_runs = store.list_runs
-load_run = store.load_run
-load_run_usage = store.load_run_usage
-load_run_verdict = store.load_run_verdict
-rows_from_cache = store.rows_from_cache
-save_run = store.save_run
-save_run_usage = store.save_run_usage
-save_run_verdict = store.save_run_verdict
-update_run = store.update_run
 
 load_project_env()
 
@@ -116,16 +96,17 @@ if _saved:
         format_func=lambda run_id: _labels[int(run_id)],
     )
     if st.button("Открыть сохранённый"):
-        loaded = load_run(int(_picked))
-        if loaded:
+        bundle = load_run_bundle(int(_picked))
+        if bundle:
+            loaded = bundle.rows
             st.session_state["saved_rows"] = loaded
             st.session_state["working_rows"] = list(loaded)
             st.session_state["working_key"] = (
                 "saved",
                 tuple(row.venue_id for row in loaded),
             )
-            st.session_state["llm_usage"] = load_run_usage(int(_picked))
-            st.session_state["llm_verdict"] = load_run_verdict(int(_picked))
+            st.session_state["llm_usage"] = bundle.usage
+            st.session_state["llm_verdict"] = bundle.verdict
             st.session_state["llm_kind"] = "SavedRun"
             st.session_state["llm_fp"] = rows_fingerprint(loaded)
             st.session_state["run_id"] = int(_picked)

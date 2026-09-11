@@ -92,7 +92,7 @@ class SourcedField(BaseModel):
 
 
 def as_sourced_field(field: object) -> SourcedField | None:
-    """Поле после reload(collect): класс SourcedField уже другой."""
+    """Duck typing: сессия/SQLite или SimpleNamespace, не только текущий класс."""
     if field is None:
         return None
     dump = getattr(field, "model_dump", None)
@@ -164,7 +164,7 @@ class PlaceRecord(BaseModel):
 
 
 def coerce_place_record(row: object) -> PlaceRecord | None:
-    """Старые JSON/сессии без efrsb/map_lat и смена класса после reload."""
+    """Старые JSON/сессии без efrsb/map_lat; duck typing чужого класса записи."""
     data: dict[str, object] | None = None
     if isinstance(row, PlaceRecord):
         data = row.model_dump()

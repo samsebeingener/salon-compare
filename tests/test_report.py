@@ -291,9 +291,7 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert ":material/edit:" in text
     assert "footnote_map" in text
     assert "Источники" in text
-    assert "importlib.reload" in text
-    assert "reload(proxy)" in text
-    assert "reload(llm)" in text
+    assert "importlib.reload" not in text
     assert "as_sourced_field" in text
     assert "reload(intake)" not in text
     assert "cell_help" in text
