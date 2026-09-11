@@ -283,7 +283,8 @@ def test_app_shows_model_disclaimer_without_duplicate_cards() -> None:
     assert MODEL_DISCLAIMER.lower() in lowered
     assert "покупай" not in lowered
     assert "недостоверн" in lowered
-    assert "_show_cards" not in text
+    assert "_show_cards" in text
+    assert "card_payload" in text
     assert "Индекс пояснение" not in text
     assert "_show_corrections" not in text
     assert "update_run" in text
