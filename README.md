@@ -20,7 +20,18 @@ git clone https://github.com/samsebeingener/salon-compare.git
 cd salon-compare
 ```
 
-На Windows — двойной щелчок по **`START.bat`**. На Linux и macOS — **`bash start.sh`** (на macOS в Finder можно **`START.command`**). Оба вызывают `scripts/start_local.py`: проверят `.env`, спросят пустые ключи (значения не печатает), поднимут Docker Compose или локальный Streamlit и откроют http://127.0.0.1:8501. Нужны Python 3 и Docker; если `docker` недоступен — запасной запуск через `uv`. Повторный запуск снова проверяет файл и пустые поля. **iPhone и iPad не поддерживаются** (нет десктопного Docker/Streamlit).
+### Старт по ОС
+
+Один `.bat` на Linux и macOS не запускается. Лаунчеры разные, логика одна: `scripts/start_local.py`.
+
+| ОС | Как стартовать |
+|---|---|
+| **Windows** | двойной щелчок `START.bat` |
+| **Linux** | `bash start.sh` |
+| **macOS** | `bash start.sh` или `START.command` в Finder |
+| **iPhone / iPad** | не поддерживается — нет Docker/Streamlit как на компьютере |
+
+Лаунчер проверит `.env`, спросит пустые ключи (значения не печатает), поднимет Docker Compose или локальный Streamlit и откроет http://127.0.0.1:8501. Нужны Python 3 и Docker; если `docker` недоступен — запасной запуск через `uv`. Повторный запуск снова проверяет файл и пустые поля.
 
 Если `start.sh` не исполняется: `chmod +x start.sh` или сразу `bash start.sh`.
 
