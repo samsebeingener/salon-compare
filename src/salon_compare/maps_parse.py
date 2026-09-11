@@ -275,6 +275,95 @@ def metro_from_links(links: object) -> str | None:
     return f"{name}, {meters} м"
 
 
+def rubrics_from_item(item: dict[str, object]) -> str | None:
+    raw = item.get("rubrics")
+    if not isinstance(raw, list):
+        return None
+    names: list[str] = []
+    for rubric in raw:
+        if not isinstance(rubric, dict):
+            continue
+        name = _nonempty(rubric.get("name"))
+        if name is None:
+            continue
+        names.append(name)
+        if len(names) == 3:
+            break
+    if not names:
+        return None
+    return ", ".join(names)
+
+
+def place_type_from_item(item: dict[str, object]) -> str | None:
+    nested = item.get("address")
+    building: str | None = None
+    if isinstance(nested, dict):
+        building = _nonempty(nested.get("building_name"))
+    if building is not None:
+        lowered = building.casefold()
+        if "тц" in lowered or "торговый" in lowered:
+            return "ТЦ"
+    comment = _nonempty(item.get("address_comment"))
+    if comment is not None and "этаж" in comment.casefold():
+        return comment
+    street: str | None = None
+    for key in ("full_address_name", "address_name"):
+        street = _nonempty(item.get(key))
+        if street:
+            break
+    if street is not None and building is None:
+        return "улица"
+    return None
+
+
+def _price_text(raw: object) -> str | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int | float):
+        return str(raw)
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    if not isinstance(raw, dict):
+        return None
+    if "distance" in raw and "min" not in raw and "max" not in raw:
+        return None
+    for key in ("name", "value", "title", "text", "level"):
+        found = _nonempty(raw.get(key))
+        if found is not None:
+            return found
+    lo, hi = raw.get("min"), raw.get("max")
+    lo_ok = isinstance(lo, int | float) and not isinstance(lo, bool)
+    hi_ok = isinstance(hi, int | float) and not isinstance(hi, bool)
+    if lo_ok and hi_ok:
+        return f"{lo}–{hi}"
+    if lo_ok:
+        return str(lo)
+    if hi_ok:
+        return str(hi)
+    return None
+
+
+def price_level_from_item(item: dict[str, object]) -> str | None:
+    for key in ("price_level", "price"):
+        found = _price_text(item.get(key))
+        if found is not None:
+            return found
+    attrs = item.get("attributes")
+    if not isinstance(attrs, list):
+        return None
+    for attr in attrs:
+        if not isinstance(attr, dict):
+            continue
+        tag = str(attr.get("tag") or attr.get("id") or "").casefold()
+        name = str(attr.get("name") or "").casefold()
+        if not ("price" in tag or "price" in name or "цен" in name or "чек" in name):
+            continue
+        found = _price_text(attr.get("value")) or _nonempty(attr.get("name"))
+        if found is not None:
+            return found
+    return None
+
+
 def card_from_twogis(item: dict[str, object]) -> MapCard:
     ogrn, inn = _org_ids(item)
     reviews = item.get("reviews")
@@ -308,4 +397,7 @@ def card_from_twogis(item: dict[str, object]) -> MapCard:
         website=_contact_website(item),
         district=district_from_adm(item.get("adm_div")),
         metro=metro_from_links(item.get("links")),
+        rubrics=rubrics_from_item(item),
+        place_type=place_type_from_item(item),
+        price_level=price_level_from_item(item),
     )

@@ -19,7 +19,7 @@ from salon_compare.proxy import httpx_client_kwargs
 TWOGIS_FIELDS = (
     "items.reviews,items.address_name,items.point,"
     "items.contact_groups,items.schedule,items.org,items.address,"
-    "items.adm_div,items.links"
+    "items.adm_div,items.links,items.rubrics"
 )
 MOSCOW_REGION_ID = "32"
 
@@ -83,6 +83,9 @@ def _with_twogis_neighbors(key: str, ident: str, card: MapCard) -> MapCard:
         card.website,
         card.district,
         card.metro,
+        card.rubrics,
+        card.place_type,
+        card.price_level,
     )
 
 

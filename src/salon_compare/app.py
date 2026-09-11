@@ -182,8 +182,29 @@ div[class*="st-key-cell-"] button:focus-visible [data-testid="stIconMaterial"] {
 """
 
 _TABLE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Репутация", ("twogis_rating", "hours", "neighbor_count", "neighbor_vs")),
-    ("Локация", ("district", "metro", "address")),
+    (
+        "Репутация",
+        (
+            "twogis_rating",
+            "twogis_last_review",
+            "twogis_reviews_90d",
+            "twogis_plus_minus",
+            "hours",
+            "neighbor_count",
+            "neighbor_vs",
+        ),
+    ),
+    (
+        "Локация",
+        (
+            "place_type",
+            "twogis_rubrics",
+            "twogis_price_level",
+            "district",
+            "metro",
+            "address",
+        ),
+    ),
     ("", ("site_about",)),
     (
         "Юрлицо",

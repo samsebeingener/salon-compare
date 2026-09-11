@@ -635,6 +635,9 @@ def test_twogis_hours_district_metro_fill_place() -> None:
         hours="пн-вс 10:00-22:00",
         district="Замоскворечье",
         metro="Павелецкая, 140 м",
+        rubrics="Салон красоты, Ногтевая студия",
+        place_type="ТЦ",
+        price_level=None,
     )
     deps = CollectDeps(
         twogis=FakeMapApi(twogis),
@@ -645,6 +648,9 @@ def test_twogis_hours_district_metro_fill_place() -> None:
     assert place.hours.value == "пн-вс 10:00-22:00"
     assert place.district.value == "Замоскворечье"
     assert place.metro.value == "Павелецкая, 140 м"
+    assert place.twogis_rubrics.value == "Салон красоты, Ногтевая студия"
+    assert place.place_type.value == "ТЦ"
+    assert place.twogis_price_level.trust is Trust.MISSING
     assert place.hours.trust is Trust.FOUND
     assert place.district.trust is Trust.FOUND
     assert place.metro.trust is Trust.FOUND

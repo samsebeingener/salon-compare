@@ -226,6 +226,20 @@ def test_coerce_place_record_accepts_old_rows_without_collect_flags() -> None:
     assert upgraded.collect_error is None
 
 
+def test_coerce_place_record_adds_missing_scale_fields() -> None:
+    data = _row().model_dump()
+    data.pop("twogis_rubrics", None)
+    data.pop("place_type", None)
+    data.pop("twogis_price_level", None)
+    data["junk_future"] = "ignore-me"
+    upgraded = coerce_place_record(data)
+    assert upgraded is not None
+    assert upgraded.twogis_rubrics.trust == Trust.MISSING
+    assert upgraded.place_type.trust == Trust.MISSING
+    assert upgraded.twogis_price_level.trust == Trust.MISSING
+    assert "junk_future" not in upgraded.model_dump()
+
+
 def test_save_and_load_keeps_collect_failure(tmp_path: Path) -> None:
     path = tmp_path / "salon-compare.sqlite"
     failed = _row().model_copy(

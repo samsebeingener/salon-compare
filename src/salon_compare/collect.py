@@ -154,6 +154,9 @@ class PlaceRecord(BaseModel):
     twogis_last_review: SourcedField = Field(default_factory=SourcedField)
     twogis_reviews_90d: SourcedField = Field(default_factory=SourcedField)
     twogis_plus_minus: SourcedField = Field(default_factory=SourcedField)
+    twogis_rubrics: SourcedField = Field(default_factory=SourcedField)
+    place_type: SourcedField = Field(default_factory=SourcedField)
+    twogis_price_level: SourcedField = Field(default_factory=SourcedField)
     district: SourcedField = Field(default_factory=SourcedField)
     metro: SourcedField = Field(default_factory=SourcedField)
     efrsb: SourcedField = Field(default_factory=SourcedField)
@@ -200,6 +203,9 @@ class MapCard:
     website: str | None = None
     district: str | None = None
     metro: str | None = None
+    rubrics: str | None = None
+    place_type: str | None = None
+    price_level: str | None = None
 
 
 @dataclass(frozen=True)
@@ -636,6 +642,19 @@ def collect_place(
         twogis_last_review=gap,
         twogis_reviews_90d=gap,
         twogis_plus_minus=gap,
+        twogis_rubrics=(
+            _found(twogis.rubrics, twogis.source_url) if twogis.rubrics else _missing()
+        ),
+        place_type=(
+            _found(twogis.place_type, twogis.source_url)
+            if twogis.place_type
+            else _missing()
+        ),
+        twogis_price_level=(
+            _found(twogis.price_level, twogis.source_url)
+            if twogis.price_level
+            else _missing()
+        ),
         district=(
             _found(twogis.district, twogis.source_url)
             if twogis.district
