@@ -65,6 +65,7 @@ apply_slot_choices = intake.apply_slot_choices
 candidate_label = intake.candidate_label
 resolve_intake = intake.resolve_intake
 LlmUsage = llm.LlmUsage
+merge_usage = llm.merge_usage
 NullLlm = llm.NullLlm
 estimated_usd_parts = llm.estimated_usd_parts
 format_usd_sum_line = llm.format_usd_sum_line
@@ -342,8 +343,16 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
             st.session_state["llm_error"] = llm.last_error()
             usage = llm.last_usage()
             run_id = st.session_state.get("run_id")
-            if usage.total_tokens is not None or usage.cost is not None:
-                st.session_state["llm_usage"] = usage
+            has_new = (
+                usage.prompt_tokens is not None
+                or usage.completion_tokens is not None
+                or usage.total_tokens is not None
+                or usage.cost is not None
+            )
+            if has_new:
+                previous = st.session_state.get("llm_usage")
+                prev_usage = previous if isinstance(previous, LlmUsage) else None
+                st.session_state["llm_usage"] = merge_usage(prev_usage, usage)
                 if isinstance(run_id, int):
                     save_run_usage(run_id, usage)
             elif st.session_state.get("llm_usage") is None:
