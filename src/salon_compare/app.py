@@ -446,6 +446,9 @@ def _show_map(rows: list[PlaceRecord]) -> None:
 
 def _show_report(rows: list[PlaceRecord]) -> None:
     _show_map(rows)
+    for row in rows:
+        if not row.collect_ok:
+            st.error(f"Сбор «{row.title}» упал: {row.collect_error or 'ошибка'}")
     _show_table(rows)
     _show_verdict(rows)
     _show_usage()

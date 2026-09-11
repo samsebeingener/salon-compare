@@ -64,6 +64,8 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     assert listed is not None
     assert len(listed) == 1
     place = listed[0]
+    assert place.collect_ok is True
+    assert place.collect_error is None
     assert place.title == "Ногтевой Сервис"
     assert place.egrul_status.trust is Trust.WEAK
     assert place.egrul_status.value == "действует"
@@ -182,6 +184,28 @@ def test_coerce_place_record_adds_missing_map_coords() -> None:
     assert upgraded is not None
     assert upgraded.map_lat is None
     assert upgraded.map_lon is None
+
+
+def test_coerce_place_record_accepts_old_rows_without_collect_flags() -> None:
+    data = _row().model_dump()
+    data.pop("collect_ok", None)
+    data.pop("collect_error", None)
+    upgraded = coerce_place_record(data)
+    assert upgraded is not None
+    assert upgraded.collect_ok is True
+    assert upgraded.collect_error is None
+
+
+def test_save_and_load_keeps_collect_failure(tmp_path: Path) -> None:
+    path = tmp_path / "salon-compare.sqlite"
+    failed = _row().model_copy(
+        update={"collect_ok": False, "collect_error": "RuntimeError: boom"}
+    )
+    run_id = save_run([failed], path)
+    loaded = load_run(run_id, path)
+    assert loaded is not None
+    assert loaded[0].collect_ok is False
+    assert loaded[0].collect_error == "RuntimeError: boom"
 
 
 def test_list_runs_label_has_id_date_and_titles(tmp_path: Path) -> None:
