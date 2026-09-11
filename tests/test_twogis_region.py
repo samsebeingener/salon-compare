@@ -35,9 +35,9 @@ def test_twogis_search_sends_region_id(monkeypatch: pytest.MonkeyPatch) -> None:
         params: dict[str, str] | None = None,
         **kwargs: object,
     ) -> _FakeResponse:
-        del kwargs
         captured["url"] = url
         captured["params"] = params or {}
+        captured["kwargs"] = kwargs
         return _FakeResponse()
 
     monkeypatch.setattr(httpx, "get", fake_get)
@@ -46,6 +46,7 @@ def test_twogis_search_sends_region_id(monkeypatch: pytest.MonkeyPatch) -> None:
     sent = captured["params"]
     assert sent["region_id"] == "32"
     assert sent["q"] == "Вишня Таганская"
+    assert captured["kwargs"].get("trust_env") is False
     fields = sent["fields"].split(",")
     assert "contact_groups" in sent["fields"]
     assert "org" in sent["fields"]

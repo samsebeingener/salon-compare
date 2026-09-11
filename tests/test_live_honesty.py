@@ -141,6 +141,7 @@ def test_html_fetcher_sends_user_agent() -> None:
     assert "User-Agent" in text
     assert "html_client_kwargs" in text
     assert "2gis.ru" in text
+    assert "2gis.com" in text
 
 
 def test_readme_records_live_probe() -> None:

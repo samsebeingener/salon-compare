@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from salon_compare.html_fetch import _MAX_HTML_BYTES, HttpxHtmlFetcher
+from salon_compare.html_fetch import (
+    _MAX_HTML_BYTES,
+    HttpxHtmlFetcher,
+    html_client_kwargs,
+)
 
 
 def test_html_fetch_rejects_content_length_over_limit(
@@ -43,3 +47,10 @@ def test_html_fetch_rejects_large_body_without_content_length(
     assert page.status == "empty"
     assert page.body == ""
     assert page.url == "https://example.com/huge"
+
+
+def test_html_client_skips_proxy_for_twogis_api_host() -> None:
+    catalog = html_client_kwargs("https://catalog.api.2gis.com/3.0/items")
+    firm = html_client_kwargs("https://2gis.ru/firm/1")
+    assert catalog["trust_env"] is False
+    assert firm["trust_env"] is False
