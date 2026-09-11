@@ -16,11 +16,16 @@ _TIMEOUT = 120.0
 _DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
 
 
+def _is_kie_host(base_url: str) -> bool:
+    parsed = urlparse(base_url if "://" in base_url else f"https://{base_url}")
+    host = parsed.netloc.lower()
+    return host == "api.kie.ai" or host.endswith(".kie.ai")
+
+
 def chat_completions_url(base_url: str, model: str) -> str:
     """Kie: origin/{model}/v1/chat/completions. Иначе {base}/chat/completions."""
     parsed = urlparse(base_url if "://" in base_url else f"https://{base_url}")
-    host = parsed.netloc.lower()
-    if host == "api.kie.ai" or host.endswith(".kie.ai"):
+    if _is_kie_host(base_url):
         slug = model.strip().strip("/")
         if slug.endswith("-openai"):
             slug = slug[: -len("-openai")]
@@ -29,13 +34,16 @@ def chat_completions_url(base_url: str, model: str) -> str:
     return f"{base_url.rstrip('/')}/chat/completions"
 
 
-def chat_payload(model: str, system_text: str, prompt: str) -> dict[str, object]:
+def chat_payload(
+    model: str,
+    system_text: str,
+    prompt: str,
+    base_url: str = "",
+) -> dict[str, object]:
     """OpenAI-совместимое тело. stream=false: у Kie Gemini по умолчанию SSE."""
-    return {
+    payload: dict[str, object] = {
         "model": model,
         "stream": False,
-        "include_thoughts": False,
-        "reasoning_effort": "low",
         "messages": [
             {
                 "role": "system",
@@ -47,6 +55,10 @@ def chat_payload(model: str, system_text: str, prompt: str) -> dict[str, object]
             },
         ],
     }
+    if _is_kie_host(base_url):
+        payload["include_thoughts"] = False
+        payload["reasoning_effort"] = "low"
+    return payload
 
 
 def unwrap_chat_response(payload: object) -> dict[str, object]:
@@ -280,7 +292,7 @@ class OpenAiCompatLlm:
             system=system_text,
             user_prompt=prompt,
         )
-        payload = chat_payload(self.model, system_text, prompt)
+        payload = chat_payload(self.model, system_text, prompt, base_url=self.base_url)
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

@@ -17,6 +17,8 @@ class _FakeResponse:
         self.status_code = status_code
         self.text = text
         self.url = url
+        self.headers: dict[str, str] = {}
+        self.content = text.encode("utf-8")
 
 
 def test_ddg_html_search_posts_query(monkeypatch: pytest.MonkeyPatch) -> None:
