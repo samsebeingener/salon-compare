@@ -21,6 +21,7 @@ def test_readme_documents_start_bat() -> None:
     assert "START.bat" in text
     assert "start.sh" in text
     assert "START.command" in text
+    assert "Старт по ОС" in text
     assert "iPhone" in text or "iPad" in text
     assert "127.0.0.1:8501" in text
 
