@@ -259,5 +259,5 @@ def test_app_accepts_three_hooks_without_report() -> None:
     assert "Уточняем данные ..." in text
     assert "st.status" in text
     assert "Собираем поля" in text
-    assert "Ждём ответ модели" in text
+    assert "Ждём JSON модели" in text
     assert "сравнительн" not in lowered

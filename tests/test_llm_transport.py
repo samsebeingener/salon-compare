@@ -108,8 +108,10 @@ def test_openai_url_keeps_v1_chat_completions() -> None:
     )
 
 
-def test_chat_payload_disables_stream() -> None:
+def test_chat_payload_disables_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     from salon_compare.llm import chat_payload
+
+    monkeypatch.delenv("LLM_MAX_TOKENS", raising=False)
 
     body = chat_payload(
         "gemini-3-flash",
@@ -120,6 +122,8 @@ def test_chat_payload_disables_stream() -> None:
     assert body["stream"] is False
     assert body["include_thoughts"] is False
     assert body["reasoning_effort"] == "low"
+    assert body["max_tokens"] == 1500
+    assert "reasoning" not in body
     messages = body["messages"]
     assert isinstance(messages, list)
     system_message = messages[0]
@@ -131,8 +135,12 @@ def test_chat_payload_disables_stream() -> None:
     assert part["text"] == "sys"
 
 
-def test_chat_payload_omits_kie_fields_for_openrouter() -> None:
+def test_chat_payload_omits_kie_fields_for_openrouter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from salon_compare.llm import chat_payload
+
+    monkeypatch.delenv("LLM_MAX_TOKENS", raising=False)
 
     body = chat_payload(
         "qwen/qwen3.8-27b",
@@ -143,6 +151,19 @@ def test_chat_payload_omits_kie_fields_for_openrouter() -> None:
     assert body["stream"] is False
     assert "include_thoughts" not in body
     assert "reasoning_effort" not in body
+    assert body["max_tokens"] == 1500
+    reasoning = body["reasoning"]
+    assert isinstance(reasoning, dict)
+    assert reasoning["effort"] == "none"
+    assert reasoning["exclude"] is True
+
+
+def test_chat_payload_reads_max_tokens_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from salon_compare.llm import chat_payload
+
+    monkeypatch.setenv("LLM_MAX_TOKENS", "800")
+    body = chat_payload("m", "s", "u", base_url="https://openrouter.ai/api/v1")
+    assert body["max_tokens"] == 800
 
 
 def test_message_content_joins_text_parts() -> None:

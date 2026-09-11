@@ -440,7 +440,7 @@ def _show_verdict(rows: list[PlaceRecord]) -> None:
     st.caption("текст модели, не инвестиционный совет")
     fingerprint = rows_fingerprint(rows)
     if st.session_state.get("llm_fp") != fingerprint:
-        with st.spinner("Ждём ответ модели…"):
+        with st.spinner("Ждём JSON модели…"):
             llm = make_llm()
             st.session_state["llm_kind"] = type(llm).__name__
             st.session_state["llm_verdict"] = complete_verdict(rows, llm)

@@ -14,6 +14,7 @@ from salon_compare.proxy import llm_transport_attempts, proxy_public_labels
 
 _TIMEOUT = 120.0
 _DEFAULT_SYSTEM = "Отвечай только JSON без пояснений."
+_DEFAULT_MAX_TOKENS = 1500
 
 
 def _is_kie_host(base_url: str) -> bool:
@@ -34,6 +35,15 @@ def chat_completions_url(base_url: str, model: str) -> str:
     return f"{base_url.rstrip('/')}/chat/completions"
 
 
+def _max_tokens() -> int:
+    raw = os.environ.get("LLM_MAX_TOKENS", "").strip()
+    if raw.isdigit():
+        value = int(raw)
+        if value > 0:
+            return value
+    return _DEFAULT_MAX_TOKENS
+
+
 def chat_payload(
     model: str,
     system_text: str,
@@ -44,6 +54,7 @@ def chat_payload(
     payload: dict[str, object] = {
         "model": model,
         "stream": False,
+        "max_tokens": _max_tokens(),
         "messages": [
             {
                 "role": "system",
@@ -58,6 +69,8 @@ def chat_payload(
     if _is_kie_host(base_url):
         payload["include_thoughts"] = False
         payload["reasoning_effort"] = "low"
+    else:
+        payload["reasoning"] = {"effort": "none", "exclude": True}
     return payload
 
 
