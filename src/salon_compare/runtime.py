@@ -1,4 +1,4 @@
-"""Поиск Docker / Streamlit для START.bat. Значения секретов не трогает."""
+"""Поиск Docker / Streamlit для лаунчера. Значения секретов не трогает."""
 
 from __future__ import annotations
 
